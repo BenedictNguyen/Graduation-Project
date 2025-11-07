@@ -17,6 +17,8 @@ import {
 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { handleSignup } from '../utils/auth';
+import { db } from '../utils/firebaseConfig';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useResponsive } from '../utils/responsive';
 
 export default function SignupScreen({ navigation }) {
@@ -27,11 +29,32 @@ export default function SignupScreen({ navigation }) {
   const [secureConfirm, setSecureConfirm] = useState(true);
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState('employee');
+  const [protectionCode, setProtectionCode] = useState('');
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [confirmFocused, setConfirmFocused] = useState(false);
+  const [protectionCodeFocused, setProtectionCodeFocused] = useState(false);
+  const [hasAdminInSystem, setHasAdminInSystem] = useState(false);
   
   const r = useResponsive();
+
+  // Kiểm tra xem có Admin nào trong hệ thống không
+  React.useEffect(() => {
+    const checkAdminExists = async () => {
+      try {
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("role", "==", "admin"));
+        const querySnapshot = await getDocs(q);
+        setHasAdminInSystem(!querySnapshot.empty);
+      } catch (error) {
+        console.error("Error checking admin:", error);
+        // Nếu không kiểm tra được, giả định đã có Admin (mặc định an toàn hơn)
+        // Backend sẽ xử lý chính xác khi đăng ký
+        setHasAdminInSystem(true);
+      }
+    };
+    checkAdminExists();
+  }, []);
 
   const onSignup = async () => {
     if (!email || !password || !confirmPassword) {
@@ -55,10 +78,16 @@ export default function SignupScreen({ navigation }) {
       return;
     }
 
+    // Nếu chọn Admin và đã có Admin trong hệ thống, kiểm tra mã khóa bảo vệ
+    if (role === 'admin' && hasAdminInSystem && !protectionCode) {
+      Alert.alert('Lỗi', 'Vui lòng nhập mã khóa bảo vệ để đăng ký Admin!');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const result = await handleSignup(email, password, role);
+      const result = await handleSignup(email, password, role, protectionCode || null);
       if (result.success) {
         Alert.alert('Thành công', 'Tạo tài khoản thành công!', [
           { text: 'Đăng nhập ngay', onPress: () => navigation.navigate('Login') },
@@ -290,6 +319,13 @@ export default function SignupScreen({ navigation }) {
       color: '#EC4899',
       fontWeight: '700',
     },
+    helperText: {
+      fontSize: r.fontSize.xs - 1,
+      color: '#64748B',
+      marginTop: 4,
+      marginLeft: 4,
+      fontStyle: 'italic',
+    },
   });
 
   return (
@@ -422,12 +458,52 @@ export default function SignupScreen({ navigation }) {
             </View>
           </View>
 
+          {role === 'admin' && (
+            <View style={styles.inputWrapper}>
+              <Text style={styles.inputLabel}>Mã khóa bảo vệ Admin</Text>
+              <View style={[
+                styles.inputContainer,
+                protectionCodeFocused ? styles.inputFocused : styles.inputUnfocused
+              ]}>
+                <View style={styles.inputIconContainer}>
+                  <Ionicons
+                    name="key-outline"
+                    size={16}
+                    color={protectionCodeFocused ? '#EC4899' : '#64748B'}
+                  />
+                </View>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder={hasAdminInSystem ? "Nhập mã khóa từ Admin hiện có" : "Không cần mã khóa (Admin đầu tiên)"}
+                  placeholderTextColor="#475569"
+                  onChangeText={setProtectionCode}
+                  value={protectionCode}
+                  autoCapitalize="characters"
+                  editable={!loading && hasAdminInSystem}
+                  onFocus={() => setProtectionCodeFocused(true)}
+                  onBlur={() => setProtectionCodeFocused(false)}
+                />
+              </View>
+              <Text style={styles.helperText}>
+                {hasAdminInSystem 
+                  ? "Cần mã khóa bảo vệ từ tài khoản Admin đã tồn tại"
+                  : "Bạn là Admin đầu tiên, không cần mã khóa bảo vệ"}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.roleSelectorContainer}>
             <Text style={styles.roleSelectorLabel}>Chọn vai trò</Text>
             <View style={styles.roleSelector}>
               <TouchableOpacity
                 style={[styles.roleButton, role === 'admin' ? styles.roleActive : styles.roleInactive]}
-                onPress={() => setRole('admin')}
+                onPress={() => {
+                  setRole('admin');
+                  // Reset mã khóa khi chuyển sang Admin
+                  if (role !== 'admin') {
+                    setProtectionCode('');
+                  }
+                }}
               >
                 <View style={styles.roleContent}>
                   <Ionicons 
@@ -446,7 +522,11 @@ export default function SignupScreen({ navigation }) {
               
               <TouchableOpacity
                 style={[styles.roleButton, role === 'employee' ? styles.roleActive : styles.roleInactive]}
-                onPress={() => setRole('employee')}
+                onPress={() => {
+                  setRole('employee');
+                  // Xóa mã khóa khi chuyển sang Employee
+                  setProtectionCode('');
+                }}
               >
                 <View style={styles.roleContent}>
                   <Ionicons 

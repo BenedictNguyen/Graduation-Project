@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -15,8 +15,11 @@ import {
   Ionicons,
 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { handleLogin } from '../utils/auth';
 import { useResponsive } from '../utils/responsive';
+
+const REMEMBER_EMAIL_KEY = '@remembered_email';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -25,8 +28,38 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   
   const r = useResponsive();
+
+  // Load email đã lưu khi component mount
+  useEffect(() => {
+    loadRememberedEmail();
+  }, []);
+
+  const loadRememberedEmail = async () => {
+    try {
+      const savedEmail = await AsyncStorage.getItem(REMEMBER_EMAIL_KEY);
+      if (savedEmail) {
+        setEmail(savedEmail);
+        setRememberMe(true);
+      }
+    } catch (error) {
+      console.error('Error loading remembered email:', error);
+    }
+  };
+
+  const saveRememberedEmail = async (emailToSave) => {
+    try {
+      if (rememberMe && emailToSave) {
+        await AsyncStorage.setItem(REMEMBER_EMAIL_KEY, emailToSave);
+      } else {
+        await AsyncStorage.removeItem(REMEMBER_EMAIL_KEY);
+      }
+    } catch (error) {
+      console.error('Error saving remembered email:', error);
+    }
+  };
 
   const onLogin = async () => {
     if (!email || !password) {
@@ -39,6 +72,8 @@ export default function LoginScreen({ navigation }) {
       const result = await handleLogin(email, password);
 
       if (result.success) {
+        // Lưu email nếu checkbox "Nhớ tài khoản" được chọn
+        await saveRememberedEmail(email);
         navigation.replace('Main');
       } else {
         alert(result.message || 'Đăng nhập thất bại');
@@ -154,6 +189,18 @@ export default function LoginScreen({ navigation }) {
       marginBottom: r.spacing.xs,
       marginLeft: 4,
     },
+    passwordHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: r.spacing.xs,
+    },
+    forgotPasswordText: {
+      fontSize: r.fontSize.xs,
+      fontWeight: '600',
+      color: '#6366F1',
+      marginRight: 4,
+    },
     inputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -181,6 +228,34 @@ export default function LoginScreen({ navigation }) {
     },
     eyeButton: {
       padding: r.spacing.xs,
+    },
+    rememberMeContainer: {
+      marginTop: r.spacing.xs,
+      marginBottom: r.spacing.sm,
+    },
+    checkboxContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: r.spacing.xs,
+    },
+    checkbox: {
+      width: 20,
+      height: 20,
+      borderRadius: 4,
+      borderWidth: 2,
+      borderColor: 'rgba(148, 163, 184, 0.4)',
+      backgroundColor: 'rgba(15, 23, 42, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    checkboxChecked: {
+      backgroundColor: '#6366F1',
+      borderColor: '#6366F1',
+    },
+    rememberMeText: {
+      fontSize: r.fontSize.sm,
+      color: '#CBD5E1',
+      fontWeight: '500',
     },
     loginButton: {
       height: 48,
@@ -303,7 +378,15 @@ export default function LoginScreen({ navigation }) {
           </View>
 
           <View style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Mật khẩu</Text>
+            <View style={styles.passwordHeader}>
+              <Text style={styles.inputLabel}>Mật khẩu</Text>
+              <TouchableOpacity 
+                onPress={() => navigation.navigate('ForgotPassword')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
+              </TouchableOpacity>
+            </View>
             <View style={[
               styles.inputContainer,
               passwordFocused ? styles.inputFocused : styles.inputUnfocused
@@ -337,6 +420,35 @@ export default function LoginScreen({ navigation }) {
                 />
               </TouchableOpacity>
             </View>
+          </View>
+
+          <View style={styles.rememberMeContainer}>
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={async () => {
+                const newRememberMe = !rememberMe;
+                setRememberMe(newRememberMe);
+                // Nếu bỏ chọn, xóa email đã lưu ngay lập tức
+                if (!newRememberMe) {
+                  try {
+                    await AsyncStorage.removeItem(REMEMBER_EMAIL_KEY);
+                  } catch (error) {
+                    console.error('Error removing remembered email:', error);
+                  }
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[
+                styles.checkbox,
+                rememberMe && styles.checkboxChecked
+              ]}>
+                {rememberMe && (
+                  <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                )}
+              </View>
+              <Text style={styles.rememberMeText}>Nhớ tài khoản</Text>
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity 

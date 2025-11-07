@@ -9,33 +9,82 @@ import {
   ActivityIndicator,
   Linking,
   Modal,
+  TextInput,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { auth, db } from '../utils/firebaseConfig';
-import { getDoc, doc } from 'firebase/firestore';
+import { getDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { clearUserSession } from '../utils/auth';
 import BottomTabBar from './bottomTabBar';
+import AvatarSelector from './AvatarSelector';
+import { getAvatarById, getDefaultAvatar } from '../utils/avatars';
 
 export default function ProfileScreen({ navigation }) {
   const [userInfo, setUserInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [avatarSelectorVisible, setAvatarSelectorVisible] = useState(false);
+  const [showEditNameModal, setShowEditNameModal] = useState(false);
+  const [displayName, setDisplayName] = useState('');
+  const [savingName, setSavingName] = useState(false);
 
   useEffect(() => {
     loadUserInfo();
+    
+    // Lắng nghe thay đổi avatar và tên hiển thị
+    const user = auth.currentUser;
+    if (user) {
+      const userDocRef = doc(db, 'users', user.uid);
+      const unsubscribe = onSnapshot(userDocRef, (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const data = docSnapshot.data();
+          setUserInfo(prev => ({
+            ...prev,
+            avatarId: data.avatarId || null,
+            displayName: data.displayName || null,
+          }));
+        }
+      });
+      
+      return () => unsubscribe();
+    }
   }, []);
+
+  // Tạo mã khóa bảo vệ
+  const generateProtectionCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
 
   const loadUserInfo = async () => {
     try {
       const user = auth.currentUser;
       if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
+          let userData = userDoc.data();
+          
+          // Nếu là Admin nhưng chưa có mã khóa bảo vệ, tạo mã mới
+          if (userData.role === 'admin' && !userData.adminProtectionCode) {
+            const newCode = generateProtectionCode();
+            await updateDoc(userDocRef, {
+              adminProtectionCode: newCode
+            });
+            userData.adminProtectionCode = newCode;
+          }
+          
           setUserInfo({
             uid: user.uid,
             email: user.email,
-            ...userDoc.data(),
+            ...userData,
           });
         }
       }
@@ -104,16 +153,29 @@ export default function ProfileScreen({ navigation }) {
               end={{ x: 1, y: 1 }}
             >
               <View style={styles.avatarContainer}>
-                <LinearGradient
-                  colors={['#6366F1', '#8B5CF6']}
-                  style={styles.avatar}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+                <TouchableOpacity
+                  onPress={() => setAvatarSelectorVisible(true)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.avatarText}>
-                    {userInfo?.email?.charAt(0).toUpperCase() || 'U'}
-                  </Text>
-                </LinearGradient>
+                  {(() => {
+                    const avatar = userInfo?.avatarId 
+                      ? getAvatarById(userInfo.avatarId) 
+                      : getDefaultAvatar();
+                    return (
+                      <LinearGradient
+                        colors={avatar.colors}
+                        style={styles.avatar}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      >
+                        <Ionicons name={avatar.icon} size={32} color="#FFFFFF" />
+                      </LinearGradient>
+                    );
+                  })()}
+                  <View style={styles.avatarEditBadge}>
+                    <Ionicons name="camera" size={14} color="#FFFFFF" />
+                  </View>
+                </TouchableOpacity>
                 <View style={styles.roleBadgeProfile}>
                   <Ionicons 
                     name={userInfo?.role === 'admin' ? 'shield-checkmark' : 'person'} 
@@ -130,7 +192,7 @@ export default function ProfileScreen({ navigation }) {
               </View>
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>
-                  {userInfo?.email?.split('@')[0] || 'User'}
+                  {userInfo?.displayName || userInfo?.email?.split('@')[0] || 'User'}
                 </Text>
                 <Text style={styles.profileEmail}>{userInfo?.email}</Text>
                 <Text style={styles.profileId}>ID: {userInfo?.employeeId}</Text>
@@ -143,6 +205,28 @@ export default function ProfileScreen({ navigation }) {
             <Text style={styles.sectionTitle}>Thông tin tài khoản</Text>
             
             <View style={styles.infoCard}>
+              <TouchableOpacity 
+                style={styles.infoItem}
+                onPress={() => {
+                  setDisplayName(userInfo?.displayName || userInfo?.email?.split('@')[0] || '');
+                  setShowEditNameModal(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.infoLeft}>
+                  <Ionicons name="person-outline" size={20} color="#6366F1" />
+                  <Text style={styles.infoLabel}>Tên hiển thị</Text>
+                </View>
+                <View style={styles.infoRight}>
+                  <Text style={styles.infoValue}>
+                    {userInfo?.displayName || userInfo?.email?.split('@')[0] || 'User'}
+                  </Text>
+                  <Ionicons name="pencil" size={16} color="#6366F1" style={styles.editIcon} />
+                </View>
+              </TouchableOpacity>
+
+              <View style={styles.infoDivider} />
+
               <View style={styles.infoItem}>
                 <View style={styles.infoLeft}>
                   <Ionicons name="mail-outline" size={20} color="#6366F1" />
@@ -263,6 +347,30 @@ export default function ProfileScreen({ navigation }) {
             </View>
           </View>
 
+          {/* Admin Protection Code Section */}
+          {userInfo?.role === 'admin' && userInfo?.adminProtectionCode && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Mã khóa bảo vệ Admin</Text>
+              
+              <View style={styles.infoCard}>
+                <View style={styles.protectionCodeContainer}>
+                  <View style={styles.protectionCodeHeader}>
+                    <Ionicons name="shield-checkmark" size={20} color="#FCD34D" />
+                    <Text style={styles.protectionCodeLabel}>Mã khóa của bạn</Text>
+                  </View>
+                  <View style={styles.protectionCodeBox}>
+                    <Text style={styles.protectionCodeText}>
+                      {userInfo.adminProtectionCode}
+                    </Text>
+                  </View>
+                  <Text style={styles.protectionCodeDescription}>
+                    Mã này được dùng để đăng ký tài khoản Admin mới. Hãy giữ bí mật!
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* Settings Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Cài đặt</Text>
@@ -363,6 +471,119 @@ export default function ProfileScreen({ navigation }) {
 
       <BottomTabBar navigation={navigation} currentRoute="Profile" />
 
+      {/* Avatar Selector Modal */}
+      <AvatarSelector
+        visible={avatarSelectorVisible}
+        onClose={() => setAvatarSelectorVisible(false)}
+        currentAvatarId={userInfo?.avatarId || null}
+        onAvatarSelected={async (avatarId) => {
+          await loadUserInfo();
+        }}
+      />
+
+      {/* Edit Display Name Modal */}
+      <Modal
+        visible={showEditNameModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowEditNameModal(false)}
+      >
+        <View style={styles.editNameModalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setShowEditNameModal(false)}
+          />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.editNameModalContainer}
+          >
+            <View style={styles.editNameModalContent}>
+                <LinearGradient
+                  colors={['#1E293B', '#0F172A']}
+                  style={styles.editNameModalGradient}
+                >
+                  <View style={styles.editNameModalHeader}>
+                    <Text style={styles.editNameModalTitle}>Chỉnh sửa tên hiển thị</Text>
+                    <TouchableOpacity
+                      onPress={() => setShowEditNameModal(false)}
+                      style={styles.closeButton}
+                    >
+                      <Ionicons name="close" size={24} color="#94A3B8" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.editNameModalBody}>
+                    <Text style={styles.editNameLabel}>Tên hiển thị</Text>
+                    <TextInput
+                      style={styles.editNameInput}
+                      value={displayName}
+                      onChangeText={setDisplayName}
+                      placeholder="Nhập tên hiển thị"
+                      placeholderTextColor="#64748B"
+                      maxLength={50}
+                      autoFocus={true}
+                    />
+                    <Text style={styles.editNameHint}>
+                      Tên này sẽ hiển thị trong ứng dụng
+                    </Text>
+                  </View>
+
+                  <View style={styles.editNameModalFooter}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => setShowEditNameModal(false)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.cancelButtonText}>Hủy</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.saveButton, savingName && styles.saveButtonDisabled]}
+                      onPress={async () => {
+                        if (savingName) return;
+                        if (!displayName.trim()) {
+                          Alert.alert('Lỗi', 'Vui lòng nhập tên hiển thị');
+                          return;
+                        }
+                        
+                        setSavingName(true);
+                        try {
+                          const user = auth.currentUser;
+                          if (user) {
+                            const userDocRef = doc(db, 'users', user.uid);
+                            await updateDoc(userDocRef, {
+                              displayName: displayName.trim(),
+                            });
+                            setUserInfo(prev => ({
+                              ...prev,
+                              displayName: displayName.trim(),
+                            }));
+                            setShowEditNameModal(false);
+                            Alert.alert('Thành công', 'Đã cập nhật tên hiển thị');
+                          }
+                        } catch (error) {
+                          console.error('Error updating display name:', error);
+                          Alert.alert('Lỗi', 'Không thể cập nhật tên hiển thị: ' + error.message);
+                        } finally {
+                          setSavingName(false);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                      disabled={savingName}
+                    >
+                      {savingName ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.saveButtonText}>Lưu</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </LinearGradient>
+              </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
       {/* About App Modal */}
       <Modal
         visible={showAboutModal}
@@ -388,7 +609,7 @@ export default function ProfileScreen({ navigation }) {
                     <Ionicons name="cube" size={32} color="#FFFFFF" />
                   </LinearGradient>
                   <View style={styles.appTitleContainer}>
-                    <Text style={styles.appTitle}>Product Manager</Text>
+                    <Text style={styles.appTitle}>Product AI</Text>
                     <Text style={styles.appSubtitle}>Quản lý sản phẩm thông minh</Text>
                   </View>
                 </View>
@@ -408,7 +629,7 @@ export default function ProfileScreen({ navigation }) {
                 <View style={styles.modalSection}>
                   <Text style={styles.modalSectionTitle}>Mô tả</Text>
                   <Text style={styles.modalDescription}>
-                    Product Manager là ứng dụng quản lý sản phẩm chuyên nghiệp, được thiết kế để giúp doanh nghiệp theo dõi và quản lý hàng tồn kho một cách hiệu quả. Với giao diện hiện đại và tính năng mạnh mẽ, ứng dụng giúp bạn nắm bắt thông tin sản phẩm trong thời gian thực, phân tích xu hướng và đưa ra quyết định kinh doanh thông minh.
+                    Product AI là ứng dụng quản lý sản phẩm chuyên nghiệp, được thiết kế để giúp doanh nghiệp theo dõi và quản lý hàng tồn kho một cách hiệu quả. Với giao diện hiện đại và tính năng mạnh mẽ, ứng dụng giúp bạn nắm bắt thông tin sản phẩm trong thời gian thực, phân tích xu hướng và đưa ra quyết định kinh doanh thông minh.
                   </Text>
                 </View>
 
@@ -525,7 +746,7 @@ export default function ProfileScreen({ navigation }) {
                 {/* Footer */}
                 <View style={styles.modalFooter}>
                   <Text style={styles.modalFooterText}>
-                    © 2024 Product Manager. Tất cả quyền được bảo lưu.
+                    © 2024 Product AI. Tất cả quyền được bảo lưu.
                   </Text>
                 </View>
               </ScrollView>
@@ -550,16 +771,31 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingBottom: 30,
+    paddingBottom: 36,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   headerTitle: {
-    fontSize: 32,
-    fontWeight: '800',
+    fontSize: 34,
+    fontWeight: '900',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 6,
+    letterSpacing: -1,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   headerSubtitle: {
     fontSize: 16,
@@ -570,28 +806,67 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   profileCard: {
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
     marginBottom: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   profileCardGradient: {
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.2)',
-    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    borderRadius: 24,
     alignItems: 'center',
+    backgroundColor: 'rgba(30, 41, 59, 0.4)',
   },
   avatarContainer: {
     alignItems: 'center',
     marginBottom: 16,
+    position: 'relative',
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
+  },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#6366F1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#0F172A',
   },
   avatarText: {
     fontSize: 32,
@@ -616,10 +891,14 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   profileName: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 26,
+    fontWeight: '900',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 6,
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   profileEmail: {
     fontSize: 14,
@@ -635,17 +914,32 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 12,
+    marginBottom: 14,
+    letterSpacing: -0.3,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   infoCard: {
     backgroundColor: 'rgba(30, 41, 59, 0.6)',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(71, 85, 105, 0.3)',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.2)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   infoItem: {
     flexDirection: 'row',
@@ -670,6 +964,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     maxWidth: '50%',
     textAlign: 'right',
+  },
+  infoRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editIcon: {
+    marginLeft: 4,
   },
   infoDivider: {
     height: 1,
@@ -932,5 +1234,147 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     fontWeight: '400',
+  },
+  protectionCodeContainer: {
+    padding: 4,
+  },
+  protectionCodeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  protectionCodeLabel: {
+    fontSize: 14,
+    color: '#FCD34D',
+    fontWeight: '600',
+  },
+  protectionCodeBox: {
+    backgroundColor: 'rgba(252, 211, 77, 0.1)',
+    borderWidth: 2,
+    borderColor: '#FCD34D',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  protectionCodeText: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FCD34D',
+    letterSpacing: 2,
+    fontFamily: 'monospace',
+  },
+  protectionCodeDescription: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  editNameModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editNameModalContainer: {
+    width: '100%',
+    maxWidth: 400,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editNameModalContent: {
+    width: '100%',
+    borderRadius: 24,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
+  },
+  editNameModalGradient: {
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  editNameModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(71, 85, 105, 0.3)',
+  },
+  editNameModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  editNameModalBody: {
+    padding: 20,
+  },
+  editNameLabel: {
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  editNameInput: {
+    backgroundColor: 'rgba(30, 41, 59, 0.6)',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    marginBottom: 8,
+  },
+  editNameHint: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 4,
+  },
+  editNameModalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: 'rgba(30, 41, 59, 0.6)',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(71, 85, 105, 0.3)',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  saveButton: {
+    flex: 1,
+    backgroundColor: '#6366F1',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

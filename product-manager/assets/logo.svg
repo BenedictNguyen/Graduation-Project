@@ -1,15 +1,122 @@
-<svg id="logo5" width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <linearGradient id="grad5a" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style="stop-color:#6366F1;stop-opacity:1"/>
-                            <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1"/>
-                        </linearGradient>
-                        <linearGradient id="grad5b" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style="stop-color:#EC4899;stop-opacity:1"/>
-                            <stop offset="100%" style="stop-color:#F472B6;stop-opacity:1"/>
-                        </linearGradient>
-                    </defs>
-                    <circle cx="100" cy="100" r="95" fill="white"/>
-                    <text x="30" y="135" font-family="Arial Black, sans-serif" font-size="100" font-weight="900" fill="url(#grad5a)">A</text>
-                    <text x="90" y="135" font-family="Arial Black, sans-serif" font-size="100" font-weight="900" fill="url(#grad5b)">H</text>
-                </svg>
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradient cho hộp sản phẩm -->
+    <linearGradient id="productGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366F1;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1"/>
+    </linearGradient>
+    
+    <!-- Gradient cho AI nodes -->
+    <linearGradient id="aiGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10B981;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:1"/>
+    </linearGradient>
+    
+    <!-- Glow effect -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Shadow -->
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="2" dy="2" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background circle với gradient -->
+  <circle cx="100" cy="100" r="95" fill="url(#productGradient)" opacity="0.1"/>
+  
+  <!-- AI Neural Network Nodes (xung quanh) -->
+  <!-- Node trên cùng -->
+  <circle cx="100" cy="30" r="8" fill="url(#aiGradient)" filter="url(#glow)"/>
+  <circle cx="100" cy="30" r="4" fill="#FFFFFF"/>
+  
+  <!-- Node dưới cùng -->
+  <circle cx="100" cy="170" r="8" fill="url(#aiGradient)" filter="url(#glow)"/>
+  <circle cx="100" cy="170" r="4" fill="#FFFFFF"/>
+  
+  <!-- Node trái -->
+  <circle cx="30" cy="100" r="8" fill="url(#aiGradient)" filter="url(#glow)"/>
+  <circle cx="30" cy="100" r="4" fill="#FFFFFF"/>
+  
+  <!-- Node phải -->
+  <circle cx="170" cy="100" r="8" fill="url(#aiGradient)" filter="url(#glow)"/>
+  <circle cx="170" cy="100" r="4" fill="#FFFFFF"/>
+  
+  <!-- Node góc trên trái -->
+  <circle cx="50" cy="50" r="6" fill="url(#aiGradient)" filter="url(#glow)" opacity="0.7"/>
+  <circle cx="50" cy="50" r="3" fill="#FFFFFF"/>
+  
+  <!-- Node góc trên phải -->
+  <circle cx="150" cy="50" r="6" fill="url(#aiGradient)" filter="url(#glow)" opacity="0.7"/>
+  <circle cx="150" cy="50" r="3" fill="#FFFFFF"/>
+  
+  <!-- Node góc dưới trái -->
+  <circle cx="50" cy="150" r="6" fill="url(#aiGradient)" filter="url(#glow)" opacity="0.7"/>
+  <circle cx="50" cy="150" r="3" fill="#FFFFFF"/>
+  
+  <!-- Node góc dưới phải -->
+  <circle cx="150" cy="150" r="6" fill="url(#aiGradient)" filter="url(#glow)" opacity="0.7"/>
+  <circle cx="150" cy="150" r="3" fill="#FFFFFF"/>
+  
+  <!-- Kết nối AI (neural network connections) -->
+  <line x1="100" y1="30" x2="100" y2="70" stroke="url(#aiGradient)" stroke-width="1.5" opacity="0.3"/>
+  <line x1="100" y1="130" x2="100" y2="170" stroke="url(#aiGradient)" stroke-width="1.5" opacity="0.3"/>
+  <line x1="30" y1="100" x2="70" y2="100" stroke="url(#aiGradient)" stroke-width="1.5" opacity="0.3"/>
+  <line x1="130" y1="100" x2="170" y2="100" stroke="url(#aiGradient)" stroke-width="1.5" opacity="0.3"/>
+  
+  <!-- Hộp sản phẩm 3D ở giữa -->
+  <g transform="translate(100, 100)">
+    <!-- Mặt trước của hộp -->
+    <path d="M -35,-20 L 35,-20 L 35,20 L -35,20 Z" 
+          fill="url(#productGradient)" 
+          filter="url(#shadow)"
+          opacity="0.95"/>
+    
+    <!-- Mặt trên của hộp -->
+    <path d="M -35,-20 L -15,-35 L 25,-35 L 35,-20 Z" 
+          fill="url(#productGradient)" 
+          opacity="0.7"/>
+    
+    <!-- Mặt bên phải của hộp -->
+    <path d="M 35,-20 L 25,-35 L 25,5 L 35,20 Z" 
+          fill="url(#productGradient)" 
+          opacity="0.6"/>
+    
+    <!-- Icon sản phẩm bên trong (dấu tích) -->
+    <path d="M -20,0 L -5,10 L 20,-10" 
+          stroke="#FFFFFF" 
+          stroke-width="4" 
+          stroke-linecap="round" 
+          stroke-linejoin="round" 
+          fill="none"
+          opacity="0.9"/>
+    
+    <!-- Icon AI (mạch điện nhỏ) trên hộp -->
+    <g transform="translate(-10, -30)">
+      <circle cx="0" cy="0" r="3" fill="#10B981"/>
+      <circle cx="8" cy="0" r="3" fill="#10B981"/>
+      <circle cx="16" cy="0" r="3" fill="#10B981"/>
+      <line x1="3" y1="0" x2="5" y2="0" stroke="#10B981" stroke-width="1.5"/>
+      <line x1="11" y1="0" x2="13" y2="0" stroke="#10B981" stroke-width="1.5"/>
+    </g>
+  </g>
+  
+  <!-- Kết nối từ AI nodes đến hộp sản phẩm -->
+  <line x1="100" y1="38" x2="100" y2="80" stroke="url(#aiGradient)" stroke-width="1" opacity="0.2" stroke-dasharray="3,3"/>
+  <line x1="100" y1="120" x2="100" y2="162" stroke="url(#aiGradient)" stroke-width="1" opacity="0.2" stroke-dasharray="3,3"/>
+  <line x1="38" y1="100" x2="80" y2="100" stroke="url(#aiGradient)" stroke-width="1" opacity="0.2" stroke-dasharray="3,3"/>
+  <line x1="120" y1="100" x2="162" y2="100" stroke="url(#aiGradient)" stroke-width="1" opacity="0.2" stroke-dasharray="3,3"/>
+</svg>

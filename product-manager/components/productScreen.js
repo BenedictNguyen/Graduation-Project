@@ -8,6 +8,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { BarChart } from 'react-native-chart-kit';
@@ -41,8 +42,12 @@ export default function ProductScreen({ navigation }) {
       }
 
       if (!user) {
-        console.log('User not authenticated, redirecting to login...');
-        navigation.replace('Login');
+        // Chỉ redirect nếu không đang ở Login screen để tránh vòng lặp
+        const currentRoute = navigation.getState()?.routes[navigation.getState()?.index]?.name;
+        if (currentRoute !== 'Login') {
+          console.log('User not authenticated, redirecting to login...');
+          navigation.replace('Login');
+        }
         setLoading(false);
         return;
       }
@@ -431,7 +436,21 @@ export default function ProductScreen({ navigation }) {
                 </View>
 
                 <View style={styles.productsGrid}>
-                  {latestProduct.products && Object.entries(latestProduct.products).map(([name, qty]) => (
+                  {latestProduct.products && Object.entries(latestProduct.products)
+                    .sort((a, b) => {
+                      const [, qtyA] = a;
+                      const [, qtyB] = b;
+                      const isInStockA = qtyA > 0;
+                      const isInStockB = qtyB > 0;
+                      
+                      // Sản phẩm còn hàng lên đầu
+                      if (isInStockA && !isInStockB) return -1;
+                      if (!isInStockA && isInStockB) return 1;
+                      
+                      // Nếu cả hai đều còn hàng hoặc cả hai đều hết hàng, sắp xếp theo số lượng giảm dần
+                      return qtyB - qtyA;
+                    })
+                    .map(([name, qty]) => (
                     <View key={name} style={styles.productItem}>
                       <View style={styles.productItemLeft}>
                         <View style={styles.productDot} />
@@ -484,16 +503,31 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingBottom: 30,
+    paddingBottom: 36,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   headerTitle: {
-    fontSize: 32,
-    fontWeight: '800',
+    fontSize: 34,
+    fontWeight: '900',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 6,
+    letterSpacing: -1,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   headerSubtitle: {
     fontSize: 16,
@@ -505,17 +539,30 @@ const styles = StyleSheet.create({
   },
   showChartButton: {
     marginBottom: 20,
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   showChartButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: 18,
+    paddingHorizontal: 28,
     gap: 12,
-    borderRadius: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
   },
   showChartButtonText: {
     fontSize: 16,
@@ -527,11 +574,22 @@ const styles = StyleSheet.create({
   },
   chartCard: {
     backgroundColor: 'rgba(30, 41, 59, 0.6)',
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 24,
+    padding: 24,
     marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   chartHeader: {
     flexDirection: 'row',
@@ -545,28 +603,42 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chartTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: -0.3,
   },
   periodTabs: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    borderRadius: 12,
-    padding: 4,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    borderRadius: 14,
+    padding: 5,
     marginBottom: 16,
-    gap: 4,
+    gap: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.15)',
   },
   periodTab: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   periodTabActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: 'rgba(99, 102, 241, 0.3)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   periodTabText: {
     fontSize: 14,
@@ -574,7 +646,8 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   periodTabTextActive: {
-    color: '#6366F1',
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   chartInfo: {
     marginBottom: 12,
@@ -620,9 +693,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   badge: {
     backgroundColor: 'rgba(99, 102, 241, 0.2)',
@@ -643,10 +720,22 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   historyCardGradient: {
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(71, 85, 105, 0.3)',
-    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.2)',
+    borderRadius: 20,
+    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   latestBadge: {
     flexDirection: 'row',

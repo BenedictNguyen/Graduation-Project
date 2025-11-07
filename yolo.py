@@ -24,11 +24,11 @@ class Config:
     FIREBASE_COLLECTION = "product_counts"
     
     # YOLO Model
-    MODEL_PATH = "D:/DO_AN_TN/App/Graduation-Project-master/Graduation-Project-master/best .pt"
+    MODEL_PATH = "D:/DO_AN_TN/App/Graduation-Project/Graduation-Project/best .pt"
     CONFIDENCE_THRESHOLD = 0.5
     
     # Camera
-    CAMERA_INDEX = 1  # Thay đổi thành 0 nếu webcam mặc định
+    CAMERA_INDEX = 2  # Thay đổi thành 0 nếu webcam mặc định
     CAMERA_WIDTH = 1280  # Resolution
     CAMERA_HEIGHT = 720
     
@@ -36,6 +36,7 @@ class Config:
     SEND_INTERVAL = 5  # Giây (tăng từ 5 lên 30 để giảm số lượng documents)
     UPDATE_MODE = True  # True: Update document "latest", False: Tạo document mới
     MIN_CHANGE_THRESHOLD = 0  # Chỉ update nếu tổng số sản phẩm thay đổi >= threshold này
+    RESET_ON_START = False  # True: Reset Firebase về 0 khi khởi động, False: Tiếp tục từ dữ liệu hiện có
     
     # Display
     WINDOW_NAME = "YOLOv11 Product Detection"
@@ -111,23 +112,103 @@ def init_model():
 def init_camera():
     """Khởi tạo camera với auto-detect và error handling"""
     
-    # Thử camera index từ config
-    cap = cv2.VideoCapture(Config.CAMERA_INDEX)
+    # Trên Windows, thử DSHOW backend trước (thường ổn định hơn MSMF)
+    backends_to_try = []
+    if os.name == 'nt':  # Windows
+        backends_to_try = [
+            (cv2.CAP_DSHOW, "DSHOW"),  # DirectShow - thường ổn định hơn trên Windows
+            (cv2.CAP_MSMF, "MSMF"),    # Microsoft Media Foundation
+            (None, "Default")           # Backend mặc định
+        ]
+    else:
+        backends_to_try = [(None, "Default")]
     
-    if not cap.isOpened():
+    cap = None
+    used_backend = None
+    
+    # Thử các backend khác nhau
+    for backend, backend_name in backends_to_try:
+        # Thử camera index từ config
+        if backend is not None:
+            cap = cv2.VideoCapture(Config.CAMERA_INDEX, backend)
+        else:
+            cap = cv2.VideoCapture(Config.CAMERA_INDEX)
+        
+        if cap.isOpened():
+            # Test đọc một frame để đảm bảo camera hoạt động
+            ret, test_frame = cap.read()
+            if ret and test_frame is not None:
+                used_backend = backend_name
+                print(f"✅ Camera {Config.CAMERA_INDEX} opened with {backend_name} backend")
+                break
+            else:
+                cap.release()
+                cap = None
+        else:
+            # Camera không mở được, release nếu có
+            if cap is not None:
+                cap.release()
+                cap = None
+    
+    # Nếu không mở được với camera index từ config, thử camera 0
+    if cap is None or not cap.isOpened():
         print(f"⚠️  Camera {Config.CAMERA_INDEX} không mở được, thử camera 0...")
-        cap = cv2.VideoCapture(0)
-    
-    if not cap.isOpened():
-        # Thử các index khác
-        for idx in range(5):
-            cap = cv2.VideoCapture(idx)
+        for backend, backend_name in backends_to_try:
+            if backend is not None:
+                cap = cv2.VideoCapture(0, backend)
+            else:
+                cap = cv2.VideoCapture(0)
+            
             if cap.isOpened():
-                print(f"✅ Found camera at index {idx}")
-                Config.CAMERA_INDEX = idx
+                ret, test_frame = cap.read()
+                if ret and test_frame is not None:
+                    used_backend = backend_name
+                    Config.CAMERA_INDEX = 0
+                    print(f"✅ Camera 0 opened with {backend_name} backend")
+                    break
+                else:
+                    cap.release()
+                    cap = None
+            else:
+                # Camera không mở được, release nếu có
+                if cap is not None:
+                    cap.release()
+                    cap = None
+    
+    # Thử các index khác
+    if cap is None or not cap.isOpened():
+        print("⚠️  Thử các camera index khác...")
+        for idx in range(1, 5):
+            for backend, backend_name in backends_to_try:
+                if backend is not None:
+                    cap = cv2.VideoCapture(idx, backend)
+                else:
+                    cap = cv2.VideoCapture(idx)
+                
+                if cap.isOpened():
+                    ret, test_frame = cap.read()
+                    if ret and test_frame is not None:
+                        used_backend = backend_name
+                        Config.CAMERA_INDEX = idx
+                        print(f"✅ Found camera at index {idx} with {backend_name} backend")
+                        break
+                    else:
+                        cap.release()
+                        cap = None
+                else:
+                    # Camera không mở được, release nếu có
+                    if cap is not None:
+                        cap.release()
+                        cap = None
+                
+                # Nếu đã mở thành công, thoát khỏi vòng lặp backend
+                if cap is not None and cap.isOpened():
+                    break
+            
+            if cap is not None and cap.isOpened():
                 break
     
-    if not cap.isOpened():
+    if cap is None or not cap.isOpened():
         raise RuntimeError("❌ Không thể mở bất kỳ camera nào! Kiểm tra kết nối camera.")
     
     # Set resolution
@@ -138,7 +219,7 @@ def init_camera():
     actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     
-    print(f"✅ Camera initialized: {actual_width}x{actual_height}")
+    print(f"✅ Camera initialized: {actual_width}x{actual_height} (Backend: {used_backend})")
     
     return cap
 
@@ -305,21 +386,48 @@ def main():
     last_sent_time = 0  # Bắt đầu từ 0 để gửi ngay lần đầu
     frame_count = 0
     previous_total = None  # Lưu tổng số sản phẩm lần trước để so sánh
+    consecutive_failures = 0  # Đếm số lần đọc frame thất bại liên tiếp
+    max_consecutive_failures = 10  # Số lần thất bại tối đa trước khi reinit camera
     
-    # Gửi dữ liệu rỗng ngay khi khởi động để reset Firebase về 0
+    # Đọc dữ liệu hiện có từ Firebase (nếu có) hoặc reset nếu được cấu hình
     if db and Config.UPDATE_MODE:
-        print("🔄 Resetting Firebase document 'latest' to empty state...")
-        empty_data = {
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "products": {},
-            "total": 0
-        }
         try:
             doc_ref = db.collection(Config.FIREBASE_COLLECTION).document("latest")
-            doc_ref.set(empty_data)
-            print("✅ Firebase reset to empty state (total: 0)")
+            doc_snapshot = doc_ref.get()
+            
+            if Config.RESET_ON_START:
+                # Reset về trạng thái rỗng nếu được cấu hình
+                print("🔄 Resetting Firebase document 'latest' to empty state...")
+                empty_data = {
+                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "products": {},
+                    "total": 0
+                }
+                doc_ref.set(empty_data)
+                previous_total = 0
+                print("✅ Firebase reset to empty state (total: 0)")
+            elif doc_snapshot.exists:
+                # Đọc dữ liệu hiện có và tiếp tục từ đó
+                existing_data = doc_snapshot.to_dict()
+                existing_products = existing_data.get("products", {})
+                previous_total = existing_data.get("total", 0)
+                
+                if existing_products:
+                    products_str = ", ".join([f"{k}: {v}" for k, v in existing_products.items()])
+                    print(f"📥 Loaded existing data from Firebase:")
+                    print(f"   - Products: {products_str}")
+                    print(f"   - Total: {previous_total}")
+                else:
+                    print("📥 No existing products found in Firebase (starting fresh)")
+                    previous_total = 0
+            else:
+                # Document chưa tồn tại, bắt đầu từ 0
+                print("📥 No existing data in Firebase (starting fresh)")
+                previous_total = 0
+                
         except Exception as e:
-            print(f"⚠️  Failed to reset Firebase: {e}")
+            print(f"⚠️  Failed to load/reset Firebase data: {e}")
+            previous_total = 0
     
     print(f"\n✅ System ready!")
     print(f"📊 Confidence threshold: {Config.CONFIDENCE_THRESHOLD}")
@@ -335,12 +443,34 @@ def main():
     
     try:
         while True:
-            # Read frame
+            # Read frame với retry logic cải thiện
             ret, frame = cap.read()
-            if not ret:
-                print("⚠️  Cannot read frame, retrying...")
-                time.sleep(0.1)
+            if not ret or frame is None:
+                consecutive_failures += 1
+                
+                # Nếu thất bại quá nhiều lần, thử reinit camera
+                if consecutive_failures >= max_consecutive_failures:
+                    print(f"\n⚠️  Camera failed {consecutive_failures} times, attempting to reinitialize...")
+                    try:
+                        cap.release()
+                        time.sleep(1)  # Đợi camera giải phóng hoàn toàn
+                        cap = init_camera()
+                        consecutive_failures = 0
+                        print("✅ Camera reinitialized successfully")
+                        continue
+                    except Exception as e:
+                        print(f"❌ Failed to reinitialize camera: {e}")
+                        print("⚠️  Continuing with retry...")
+                
+                # Exponential backoff: tăng thời gian chờ khi thất bại nhiều lần
+                wait_time = min(0.1 * (2 ** min(consecutive_failures // 3, 3)), 2.0)
+                if consecutive_failures % 5 == 0:  # Chỉ in mỗi 5 lần để tránh spam
+                    print(f"⚠️  Cannot read frame (failures: {consecutive_failures}), retrying in {wait_time:.1f}s...")
+                time.sleep(wait_time)
                 continue
+            
+            # Reset counter khi đọc thành công
+            consecutive_failures = 0
             
             frame_count += 1
             

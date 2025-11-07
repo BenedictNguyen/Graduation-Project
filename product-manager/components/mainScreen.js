@@ -13,11 +13,23 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { onSnapshot } from 'firebase/firestore';
+import { 
+  onSnapshot, 
+  collection, 
+  addDoc, 
+  Timestamp,
+  getDoc, 
+  doc, 
+  query, 
+  where, 
+  orderBy, 
+  limit 
+} from 'firebase/firestore';
 import { db, auth } from '../utils/firebaseConfig';
-import { getDoc, doc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import BottomTabBar from './bottomTabBar';
+import NotificationCenter from './NotificationCenter';
+import { getAvatarById, getDefaultAvatar } from '../utils/avatars';
 
 
 const { width } = Dimensions.get('window');
@@ -28,9 +40,14 @@ export default function MainScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [userRole, setUserRole] = useState('employee');
   const [userName, setUserName] = useState('');
+  const [userAvatarId, setUserAvatarId] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('waiting'); // 'waiting' or 'connected'
   const [currentTime, setCurrentTime] = useState(new Date());
   const [greeting, setGreeting] = useState('');
+  const [notificationModalVisible, setNotificationModalVisible] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [userId, setUserId] = useState(null);
+  const previousProductsRef = useRef(null);
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -49,8 +66,12 @@ export default function MainScreen({ navigation }) {
       }
 
       if (!user) {
-        console.log('User not authenticated, redirecting to login...');
-        navigation.replace('Login');
+        // Chỉ redirect nếu không đang ở Login screen để tránh vòng lặp
+        const currentRoute = navigation.getState()?.routes[navigation.getState()?.index]?.name;
+        if (currentRoute !== 'Login') {
+          console.log('User not authenticated, redirecting to login...');
+          navigation.replace('Login');
+        }
         setLoading(false);
         return;
       }
@@ -58,6 +79,7 @@ export default function MainScreen({ navigation }) {
       // Đảm bảo user có document trong users collection
       try {
         await checkUserInfo();
+        setUserId(user.uid);
       } catch (error) {
         console.error('Error checking user info:', error);
       }
@@ -71,7 +93,14 @@ export default function MainScreen({ navigation }) {
             id: docSnapshot.id,
             ...docSnapshot.data(),
           };
+          
+          // Kiểm tra thay đổi và tạo thông báo
+          if (previousProductsRef.current) {
+            checkProductChanges(previousProductsRef.current, data.products, user.uid);
+          }
+          
           setLatestData(data);
+          previousProductsRef.current = data.products;
           
           // Kiểm tra trạng thái kết nối dựa trên timestamp
           checkConnectionStatus(data.timestamp);
@@ -95,6 +124,125 @@ export default function MainScreen({ navigation }) {
       }
     };
   }, [navigation]);
+
+  // Lắng nghe số lượng thông báo chưa đọc
+  useEffect(() => {
+    if (!userId) return;
+
+    const notificationsRef = collection(db, 'notifications');
+    const q = query(
+      notificationsRef,
+      where('userId', '==', userId),
+      where('read', '==', false)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setUnreadNotificationCount(snapshot.size);
+    }, (error) => {
+      console.error('Error listening to notifications:', error);
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+
+  // Lắng nghe thay đổi avatar của user
+  useEffect(() => {
+    if (!userId) return;
+
+    const userDocRef = doc(db, 'users', userId);
+    const unsubscribe = onSnapshot(userDocRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const data = docSnapshot.data();
+        setUserAvatarId(data.avatarId || null);
+        // Cập nhật các thông tin khác nếu cần
+        if (data.role) setUserRole(data.role);
+        // Ưu tiên displayName, sau đó name, cuối cùng là email
+        if (data.displayName || data.name || data.email) {
+          const name = data.displayName || data.name || data.email?.split('@')[0] || 'User';
+          const formattedName = name
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+          setUserName(formattedName);
+        }
+      }
+    }, (error) => {
+      console.error('Error listening to user info:', error);
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+
+  // Tạo thông báo khi có thay đổi sản phẩm
+  const checkProductChanges = async (previousProducts, currentProducts, uid) => {
+    if (!previousProducts || !currentProducts || !uid) return;
+
+    try {
+      const previousKeys = Object.keys(previousProducts);
+      const currentKeys = Object.keys(currentProducts);
+
+      // Kiểm tra sản phẩm mới
+      const newProducts = currentKeys.filter(key => !previousKeys.includes(key));
+      for (const productName of newProducts) {
+        await createNotification({
+          userId: uid,
+          type: 'product_new',
+          title: 'Sản phẩm mới được phát hiện',
+          body: `Sản phẩm "${productName}" đã được thêm vào kệ với số lượng ${currentProducts[productName]}`,
+        });
+      }
+
+      // Kiểm tra sản phẩm hết hàng
+      for (const productName of previousKeys) {
+        const previousQty = previousProducts[productName] || 0;
+        const currentQty = currentProducts[productName] || 0;
+        
+        if (previousQty > 0 && currentQty === 0) {
+          await createNotification({
+            userId: uid,
+            type: 'product_out_of_stock',
+            title: 'Sản phẩm hết hàng',
+            body: `Sản phẩm "${productName}" đã hết hàng trên kệ`,
+          });
+        }
+      }
+
+      // Kiểm tra cập nhật số lượng đáng kể
+      for (const productName of currentKeys) {
+        const previousQty = previousProducts[productName] || 0;
+        const currentQty = currentProducts[productName] || 0;
+        const change = Math.abs(currentQty - previousQty);
+        
+        if (change >= 5 && previousQty > 0 && currentQty > 0) {
+          const direction = currentQty > previousQty ? 'tăng' : 'giảm';
+          await createNotification({
+            userId: uid,
+            type: 'product_update',
+            title: 'Cập nhật số lượng sản phẩm',
+            body: `Sản phẩm "${productName}" ${direction} từ ${previousQty} lên ${currentQty} đơn vị`,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error checking product changes:', error);
+    }
+  };
+
+  // Hàm tạo thông báo
+  const createNotification = async ({ userId, type, title, body }) => {
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        userId,
+        type,
+        title,
+        body,
+        read: false,
+        createdAt: Timestamp.now(),
+      });
+    } catch (error) {
+      console.error('Error creating notification:', error);
+    }
+  };
 
   // Kiểm tra trạng thái kết nối dựa trên timestamp
   const checkConnectionStatus = (timestamp) => {
@@ -140,8 +288,10 @@ export default function MainScreen({ navigation }) {
       if (userDoc.exists()) {
         const data = userDoc.data();
         setUserRole(data.role || 'employee');
+        setUserAvatarId(data.avatarId || null);
         // Format tên: viết hoa chữ cái đầu của mỗi từ
-        const name = data.name || data.email?.split('@')[0] || 'User';
+        // Ưu tiên displayName, sau đó name, cuối cùng là email
+        const name = data.displayName || data.name || data.email?.split('@')[0] || 'User';
         const formattedName = name
           .split(' ')
           .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
@@ -266,18 +416,27 @@ export default function MainScreen({ navigation }) {
             },
           ]}
         >
-          <View style={styles.headerTop}>
-            <View style={styles.userInfoContainer}>
-              <LinearGradient
-                colors={['#6366F1', '#8B5CF6']}
-                style={styles.avatarContainer}
-              >
-                <Ionicons 
-                  name="person" 
-                  size={28} 
-                  color="#FFFFFF" 
-                />
-              </LinearGradient>
+            <View style={styles.headerTop}>
+              <View style={styles.userInfoContainer}>
+                {(() => {
+                  const avatar = userAvatarId 
+                    ? getAvatarById(userAvatarId) 
+                    : getDefaultAvatar();
+                  return (
+                    <LinearGradient
+                      colors={avatar.colors}
+                      style={styles.avatarContainer}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Ionicons 
+                        name={avatar.icon} 
+                        size={28} 
+                        color="#FFFFFF" 
+                      />
+                    </LinearGradient>
+                  );
+                })()}
               <View style={styles.userTextContainer}>
                 <Text style={styles.greetingText}>{greeting} 👋</Text>
                 <Text style={styles.userNameText}>{userName || 'User'}</Text>
@@ -289,13 +448,20 @@ export default function MainScreen({ navigation }) {
             <TouchableOpacity 
               style={styles.notificationButton}
               activeOpacity={0.7}
+              onPress={() => setNotificationModalVisible(true)}
             >
               <LinearGradient
                 colors={['rgba(99, 102, 241, 0.2)', 'rgba(139, 92, 246, 0.1)']}
                 style={styles.notificationButtonGradient}
               >
                 <Ionicons name="notifications-outline" size={22} color="#CBD5E1" />
-                <View style={styles.notificationDot} />
+                {unreadNotificationCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                    </Text>
+                  </View>
+                )}
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -362,6 +528,7 @@ export default function MainScreen({ navigation }) {
             <TouchableOpacity 
               activeOpacity={0.9}
               style={styles.statCardTouchable}
+              onPress={() => navigation.navigate('ProductTypes')}
             >
               <LinearGradient
                 colors={['#EC4899', '#F472B6', '#F9A8D4']}
@@ -521,7 +688,21 @@ export default function MainScreen({ navigation }) {
               },
             ]}
           >
-            {Object.entries(latestData.products).map(([name, qty], index) => {
+            {Object.entries(latestData.products)
+              .sort((a, b) => {
+                const [, qtyA] = a;
+                const [, qtyB] = b;
+                const isInStockA = qtyA > 0;
+                const isInStockB = qtyB > 0;
+                
+                // Sản phẩm còn hàng lên đầu
+                if (isInStockA && !isInStockB) return -1;
+                if (!isInStockA && isInStockB) return 1;
+                
+                // Nếu cả hai đều còn hàng hoặc cả hai đều hết hàng, sắp xếp theo số lượng giảm dần
+                return qtyB - qtyA;
+              })
+              .map(([name, qty], index) => {
               const isOutOfStock = qty === 0;
               const progressPercentage = (qty / maxProducts) * 100;
               return (
@@ -559,7 +740,7 @@ export default function MainScreen({ navigation }) {
                           style={styles.productIconGradient}
                         >
                           <MaterialCommunityIcons 
-                            name={getProductIcon(index)} 
+                            name={getProductIcon(name)} 
                             size={30} 
                             color={isOutOfStock ? "#64748B" : "#6366F1"} 
                           />
@@ -641,16 +822,27 @@ export default function MainScreen({ navigation }) {
       </Animated.View>
     </ScrollView>
     <BottomTabBar navigation={navigation} currentRoute="Main" />
+    <NotificationCenter
+      visible={notificationModalVisible}
+      onClose={() => setNotificationModalVisible(false)}
+      userId={userId}
+    />
     </View>
   );
 }
 
-const getProductIcon = (index) => {
-  const icons = [
-    'coffee', 'tea', 'bottle-soda', 'food-apple', 
-    'food', 'glass-cocktail', 'fruit-cherries', 'cupcake'
-  ];
-  return icons[index % icons.length];
+// Hàm mapping tên sản phẩm sang icon tượng trưng
+const getProductIcon = (productName) => {
+  const iconMap = {
+    'erasable pen': 'pencil-remove', // Bút xóa được
+    'ballpoint pen': 'pen', // Bút bi
+    'glue': 'bottle-tonic', // Keo dán
+    'black tea': 'cup', // Trà đen
+    'noni tea': 'cup-outline', // Trà noni
+  };
+  
+  // Trả về icon tương ứng hoặc icon mặc định
+  return iconMap[productName.toLowerCase()] || 'cube-outline';
 };
 
 const styles = StyleSheet.create({
@@ -666,10 +858,21 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingBottom: 32,
+    paddingBottom: 36,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   headerContent: {
     gap: 16,
@@ -686,20 +889,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     ...Platform.select({
       ios: {
         shadowColor: '#6366F1',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 8,
+        elevation: 10,
       },
     }),
   },
@@ -714,10 +919,13 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   userNameText: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 0.3,
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   userRoleText: {
     fontSize: 13,
@@ -745,20 +953,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   notificationButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 20,
     overflow: 'hidden',
     position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.2)',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 3,
+        elevation: 6,
       },
     }),
   },
@@ -768,16 +978,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  notificationDot: {
+  notificationBadge: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    top: 8,
+    right: 8,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: '#EF4444',
     borderWidth: 2,
     borderColor: '#1E293B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   content: {
     padding: 20,
@@ -806,10 +1024,23 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    padding: 20,
-    borderRadius: 24,
-    minHeight: 160,
+    padding: 22,
+    borderRadius: 26,
+    minHeight: 170,
     justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.35,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
   },
   statCardHeader: {
     flexDirection: 'row',
@@ -853,8 +1084,21 @@ const styles = StyleSheet.create({
     }),
   },
   statCardWide: {
-    padding: 20,
-    borderRadius: 24,
+    padding: 22,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.35,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
   },
   statCardWideContent: {
     flexDirection: 'row',
@@ -886,19 +1130,35 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   statIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   statValue: {
-    fontSize: 40,
-    fontWeight: '800',
+    fontSize: 42,
+    fontWeight: '900',
     color: '#FFFFFF',
-    marginBottom: 4,
-    letterSpacing: -1,
+    marginBottom: 6,
+    letterSpacing: -1.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   statValueSmall: {
     fontSize: 17,
@@ -915,10 +1175,22 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   statusCard: {
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.2)',
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   statusContent: {
     flexDirection: 'row',
@@ -926,12 +1198,25 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   statusIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
+    width: 60,
+    height: 60,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   statusIconGradient: {
     width: '100%',
@@ -1007,10 +1292,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 2,
+    marginBottom: 4,
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   sectionSubtitle: {
     fontSize: 13,
@@ -1042,30 +1331,44 @@ const styles = StyleSheet.create({
   productCardGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 18,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.1)',
-    borderRadius: 18,
+    padding: 20,
+    gap: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.2)',
+    borderRadius: 22,
+    backgroundColor: 'rgba(30, 41, 59, 0.5)',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 2,
+        elevation: 6,
       },
     }),
   },
   productIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
+    width: 68,
+    height: 68,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.2)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
   },
   productIconGradient: {
     width: '100%',
@@ -1107,9 +1410,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   productName: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: -0.3,
   },
   productNameOutOfStock: {
     color: '#94A3B8',
@@ -1130,9 +1434,13 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   productQtyInline: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '900',
     color: '#6366F1',
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(99, 102, 241, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   productQtyInlineOutOfStock: {
     color: '#64748B',
@@ -1151,27 +1459,56 @@ const styles = StyleSheet.create({
   },
   emptyStateGradient: {
     width: '100%',
-    padding: 40,
-    borderRadius: 24,
+    padding: 44,
+    borderRadius: 28,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(99, 102, 241, 0.2)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   emptyText: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#FFFFFF',
     marginTop: 8,
-    marginBottom: 8,
+    marginBottom: 10,
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   emptySubtext: {
     fontSize: 14,

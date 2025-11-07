@@ -10,6 +10,8 @@ import MainScreen from './components/mainScreen';
 import SignupScreen from './components/signupScreen';
 import ProductScreen from './components/productScreen';
 import ProfileScreen from './components/profile';
+import ForgotPasswordScreen from './components/forgotPasswordScreen';
+import ProductTypesScreen from './components/productTypesScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -38,7 +40,10 @@ export default function App() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator 
+        screenOptions={{ headerShown: false }}
+        initialRouteName={user ? "Main" : "Login"}
+      >
         {user ? (
           // User is signed in
           <>
@@ -57,29 +62,20 @@ export default function App() {
               component={ProfileScreen}
               options={{ animation: 'fade' }}
             />
+            <Stack.Screen 
+              name="ProductTypes" 
+              component={ProductTypesScreen}
+              options={{ animation: 'fade' }}
+            />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Signup" component={SignupScreen} />
           </>
         ) : (
-          // User is NOT signed in
+          // User is NOT signed in - chỉ đăng ký Login và Signup
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Signup" component={SignupScreen} />
-            <Stack.Screen 
-              name="Main" 
-              component={MainScreen}
-              options={{ animation: 'fade' }}
-            />
-            <Stack.Screen 
-              name="Product" 
-              component={ProductScreen}
-              options={{ animation: 'fade' }}
-            />
-            <Stack.Screen 
-              name="Profile" 
-              component={ProfileScreen}
-              options={{ animation: 'fade' }}
-            />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           </>
         )}
       </Stack.Navigator>
