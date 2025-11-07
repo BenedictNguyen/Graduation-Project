@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function: Kiểm tra user đã đăng nhập
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Helper function: Lấy role của user hiện tại
+    function getUserRole() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc != null && userDoc.data.role != null ? userDoc.data.role : 'employee';
+    }
+    
+    // Helper function: Kiểm tra có phải admin không
+    function isAdmin() {
+      return isSignedIn() && getUserRole() == 'admin';
+    }
+    
+    // Helper function: Kiểm tra có phải employee không
+    function isEmployee() {
+      return isSignedIn() && getUserRole() == 'employee';
+    }
+    
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+    match /users/{userId} {
+      // Admin: Đọc tất cả, sửa tất cả, xóa tất cả
+      allow read, write, delete: if isAdmin();
+      
+      // User có thể tạo document của chính mình (nếu chưa tồn tại)
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      
+      // Employee: Chỉ đọc và sửa dữ liệu của chính mình
+      allow read, update: if isSignedIn() && request.auth.uid == userId;
+      
+      // Không cho phép user xóa document của chính mình (chỉ admin)
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // PRODUCT_COUNTS COLLECTION
+    // ============================================
+    match /product_counts/{documentId} {
+      // Cho phép tất cả user đã đăng nhập đọc dữ liệu
+      // (User phải có document trong users collection - được tạo khi đăng ký)
+      allow read: if isSignedIn();
+      
+      // Admin: Có thể xóa (nếu cần)
+      allow delete: if isAdmin();
+      
+      // Không cho phép client-side ghi vào product_counts
+      // Chỉ server-side (Python script với Admin SDK) mới được ghi
+      allow create, update: if false;
+    }
+    
+    // ============================================
+    // DEFAULT: Từ chối tất cả các truy cập khác
+    // ============================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
