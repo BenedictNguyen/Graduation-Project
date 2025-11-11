@@ -157,36 +157,50 @@ export default function LoginScreen({ navigation }) {
       color: '#94A3B8',
       textAlign: 'center',
       fontWeight: '500',
+      marginTop: 4,
     },
     formContainer: {
-      backgroundColor: 'rgba(30, 41, 59, 0.6)',
-      borderRadius: 20,
-      padding: r.spacing.lg,
+      backgroundColor: 'rgba(30, 41, 59, 0.7)',
+      borderRadius: 24,
+      padding: r.spacing.xl,
       borderWidth: 1,
-      borderColor: 'rgba(99, 102, 241, 0.2)',
-      maxWidth: 400,
+      borderColor: 'rgba(99, 102, 241, 0.25)',
+      maxWidth: 420,
       alignSelf: 'center',
-      width: '90%',
+      width: '100%',
+      ...Platform.select({
+        ios: {
+          shadowColor: '#6366F1',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.15,
+          shadowRadius: 16,
+        },
+        android: {
+          elevation: 8,
+        },
+      }),
     },
     welcomeText: {
-      fontSize: r.fontSize.xl,
-      fontWeight: '700',
+      fontSize: r.fontSize.xxl,
+      fontWeight: '800',
       color: '#FFFFFF',
-      marginBottom: 4,
+      marginBottom: 6,
+      letterSpacing: -0.5,
     },
     subText: {
-      fontSize: r.fontSize.sm,
+      fontSize: r.fontSize.base,
       color: '#94A3B8',
-      marginBottom: r.spacing.md,
+      marginBottom: r.spacing.lg,
+      lineHeight: 20,
     },
     inputWrapper: {
       marginBottom: r.spacing.md,
     },
     inputLabel: {
-      fontSize: r.fontSize.xs,
+      fontSize: r.fontSize.sm,
       fontWeight: '600',
       color: '#CBD5E1',
-      marginBottom: r.spacing.xs,
+      marginBottom: 8,
       marginLeft: 4,
     },
     passwordHeader: {
@@ -204,11 +218,11 @@ export default function LoginScreen({ navigation }) {
     inputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: 'rgba(15, 23, 42, 0.5)',
-      borderRadius: 12,
-      borderWidth: 2,
-      paddingHorizontal: r.spacing.sm,
-      height: 48,
+      backgroundColor: 'rgba(15, 23, 42, 0.6)',
+      borderRadius: 14,
+      borderWidth: 1.5,
+      paddingHorizontal: r.spacing.md,
+      height: 52,
     },
     inputFocused: {
       borderColor: '#6366F1',
@@ -222,9 +236,10 @@ export default function LoginScreen({ navigation }) {
     },
     textInput: {
       flex: 1,
-      fontSize: r.fontSize.sm,
+      fontSize: r.fontSize.base,
       color: '#FFFFFF',
       outlineStyle: 'none',
+      paddingVertical: 0,
     },
     eyeButton: {
       padding: r.spacing.xs,
@@ -258,10 +273,10 @@ export default function LoginScreen({ navigation }) {
       fontWeight: '500',
     },
     loginButton: {
-      height: 48,
-      borderRadius: 12,
+      height: 52,
+      borderRadius: 14,
       overflow: 'hidden',
-      marginTop: r.spacing.sm,
+      marginTop: r.spacing.md,
     },
     loginGradient: {
       flex: 1,
@@ -310,17 +325,21 @@ export default function LoginScreen({ navigation }) {
       fontWeight: '700',
     },
     featureContainer: {
-      marginTop: r.spacing.md,
-      gap: r.spacing.xs,
+      marginTop: r.spacing.lg,
+      gap: 10,
+      paddingTop: r.spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(148, 163, 184, 0.1)',
     },
     featureItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: r.spacing.xs,
+      gap: 10,
     },
     featureText: {
-      fontSize: r.fontSize.xs,
+      fontSize: r.fontSize.sm,
       color: '#94A3B8',
+      fontWeight: '500',
     },
   });
 
@@ -341,7 +360,7 @@ export default function LoginScreen({ navigation }) {
               style={styles.logoImage}
             />
           </View>
-          <Text style={styles.brandTitle}>Product AI</Text>
+          <Text style={styles.brandTitle}>SMART SHELF</Text>
           <Text style={styles.brandSubtitle}>Quản lý thông minh với AI</Text>
         </View>
 
@@ -485,15 +504,15 @@ export default function LoginScreen({ navigation }) {
 
           <View style={styles.featureContainer}>
             <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={14} color="#6366F1" />
+              <Ionicons name="checkmark-circle" size={16} color="#6366F1" />
               <Text style={styles.featureText}>Nhận diện sản phẩm bằng AI</Text>
             </View>
             <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={14} color="#6366F1" />
+              <Ionicons name="checkmark-circle" size={16} color="#6366F1" />
               <Text style={styles.featureText}>Thống kê realtime</Text>
             </View>
             <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={14} color="#6366F1" />
+              <Ionicons name="checkmark-circle" size={16} color="#6366F1" />
               <Text style={styles.featureText}>Bảo mật cao</Text>
             </View>
           </View>

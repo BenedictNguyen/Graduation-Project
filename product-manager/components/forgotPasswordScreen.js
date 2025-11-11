@@ -122,14 +122,25 @@ export default function ForgotPasswordScreen({ navigation }) {
       fontWeight: '500',
     },
     formContainer: {
-      backgroundColor: 'rgba(30, 41, 59, 0.6)',
-      borderRadius: 20,
-      padding: r.spacing.lg,
+      backgroundColor: 'rgba(30, 41, 59, 0.7)',
+      borderRadius: 24,
+      padding: r.spacing.xl,
       borderWidth: 1,
-      borderColor: 'rgba(99, 102, 241, 0.2)',
-      maxWidth: 400,
+      borderColor: 'rgba(99, 102, 241, 0.25)',
+      maxWidth: 420,
       alignSelf: 'center',
-      width: '90%',
+      width: '100%',
+      ...Platform.select({
+        ios: {
+          shadowColor: '#6366F1',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.15,
+          shadowRadius: 16,
+        },
+        android: {
+          elevation: 8,
+        },
+      }),
     },
     welcomeText: {
       fontSize: r.fontSize.xl,
@@ -155,11 +166,11 @@ export default function ForgotPasswordScreen({ navigation }) {
     inputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: 'rgba(15, 23, 42, 0.5)',
-      borderRadius: 12,
-      borderWidth: 2,
-      paddingHorizontal: r.spacing.sm,
-      height: 48,
+      backgroundColor: 'rgba(15, 23, 42, 0.6)',
+      borderRadius: 14,
+      borderWidth: 1.5,
+      paddingHorizontal: r.spacing.md,
+      height: 52,
     },
     inputFocused: {
       borderColor: '#6366F1',
@@ -173,15 +184,16 @@ export default function ForgotPasswordScreen({ navigation }) {
     },
     textInput: {
       flex: 1,
-      fontSize: r.fontSize.sm,
+      fontSize: r.fontSize.base,
       color: '#FFFFFF',
       outlineStyle: 'none',
+      paddingVertical: 0,
     },
     sendButton: {
-      height: 48,
-      borderRadius: 12,
+      height: 52,
+      borderRadius: 14,
       overflow: 'hidden',
-      marginTop: r.spacing.sm,
+      marginTop: r.spacing.md,
     },
     sendGradient: {
       flex: 1,
@@ -250,7 +262,7 @@ export default function ForgotPasswordScreen({ navigation }) {
               style={styles.logoImage}
             />
           </View>
-          <Text style={styles.brandTitle}>Product AI</Text>
+          <Text style={styles.brandTitle}>SMART SHELF</Text>
           <Text style={styles.brandSubtitle}>Quản lý thông minh với AI</Text>
         </View>
 

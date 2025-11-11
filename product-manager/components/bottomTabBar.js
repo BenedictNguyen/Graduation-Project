@@ -56,22 +56,22 @@ export default function BottomTabBar({ navigation, currentRoute }) {
     },
     gradient: {
       flexDirection: 'row',
-      paddingTop: 12,
-      paddingBottom: Platform.OS === 'ios' ? 16 : 12,
+      paddingTop: 10,
+      paddingBottom: Platform.OS === 'ios' ? 18 : 14,
       paddingHorizontal: 8,
-      backgroundColor: 'rgba(30, 41, 59, 0.95)',
+      backgroundColor: 'rgba(30, 41, 59, 0.98)',
       borderWidth: 1,
-      borderColor: 'rgba(99, 102, 241, 0.3)',
+      borderColor: 'rgba(99, 102, 241, 0.25)',
     },
     tabButton: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 8,
-      borderRadius: 16,
+      paddingVertical: 6,
+      borderRadius: 14,
     },
     tabButtonActive: {
-      backgroundColor: 'rgba(99, 102, 241, 0.2)',
+      backgroundColor: 'rgba(99, 102, 241, 0.15)',
     },
     iconContainer: {
       marginBottom: 4,
@@ -88,6 +88,7 @@ export default function BottomTabBar({ navigation, currentRoute }) {
       fontSize: r.fontSize.xs,
       fontWeight: '600',
       color: '#94A3B8',
+      marginTop: 2,
     },
     labelActive: {
       color: '#6366F1',

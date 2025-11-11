@@ -183,14 +183,25 @@ export default function SignupScreen({ navigation }) {
       fontWeight: '500',
     },
     formContainer: {
-      backgroundColor: 'rgba(30, 41, 59, 0.6)',
-      borderRadius: 20,
-      padding: r.spacing.md,
+      backgroundColor: 'rgba(30, 41, 59, 0.7)',
+      borderRadius: 24,
+      padding: r.spacing.lg,
       borderWidth: 1,
-      borderColor: 'rgba(236, 72, 153, 0.2)',
-      maxWidth: 400,
+      borderColor: 'rgba(236, 72, 153, 0.25)',
+      maxWidth: 420,
       alignSelf: 'center',
-      width: '90%',
+      width: '100%',
+      ...Platform.select({
+        ios: {
+          shadowColor: '#EC4899',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.15,
+          shadowRadius: 16,
+        },
+        android: {
+          elevation: 8,
+        },
+      }),
     },
     inputWrapper: {
       marginBottom: r.spacing.sm,
@@ -205,11 +216,11 @@ export default function SignupScreen({ navigation }) {
     inputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: 'rgba(15, 23, 42, 0.5)',
-      borderRadius: 12,
-      borderWidth: 2,
-      paddingHorizontal: r.spacing.sm,
-      height: 44,
+      backgroundColor: 'rgba(15, 23, 42, 0.6)',
+      borderRadius: 14,
+      borderWidth: 1.5,
+      paddingHorizontal: r.spacing.md,
+      height: 52,
     },
     inputFocused: {
       borderColor: '#EC4899',
@@ -223,9 +234,10 @@ export default function SignupScreen({ navigation }) {
     },
     textInput: {
       flex: 1,
-      fontSize: r.fontSize.sm,
+      fontSize: r.fontSize.base,
       color: '#FFFFFF',
       outlineStyle: 'none',
+      paddingVertical: 0,
     },
     eyeButton: {
       padding: 4,
@@ -284,10 +296,10 @@ export default function SignupScreen({ navigation }) {
       fontSize: 10,
     },
     signupButton: {
-      height: 44,
-      borderRadius: 12,
+      height: 52,
+      borderRadius: 14,
       overflow: 'hidden',
-      marginTop: r.spacing.xs,
+      marginTop: r.spacing.md,
     },
     signupGradient: {
       flex: 1,

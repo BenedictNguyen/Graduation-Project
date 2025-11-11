@@ -39,9 +39,12 @@ service cloud.firestore {
       // Không cho phép user xóa document của chính mình (chỉ admin)
       allow delete: if isAdmin();
       
+      // Cho phép user đã đăng nhập đọc danh sách users (chỉ để lấy userId cho thông báo)
+      // Điều này cần thiết để đồng bộ thông báo cho tất cả tài khoản
+      allow read: if isSignedIn();
+      
       // Cho phép người dùng chưa đăng nhập đọc để kiểm tra xem có Admin nào không
       // (Chỉ để hiển thị UI phù hợp trong màn hình đăng ký)
-      // Lưu ý: Quy tắc này cho phép đọc tất cả user documents, nhưng chỉ dùng để check admin existence
       allow read: if request.auth == null;
     }
     
@@ -73,7 +76,11 @@ service cloud.firestore {
       );
       
       // User có thể tạo thông báo cho chính mình
-      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      // Admin có thể tạo thông báo cho bất kỳ user nào
+      allow create: if isSignedIn() && (
+        request.auth.uid == request.resource.data.userId ||
+        isAdmin()
+      );
       
       // User có thể cập nhật thông báo của chính mình (đánh dấu đã đọc)
       allow update: if isSignedIn() && (
