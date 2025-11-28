@@ -1,20 +1,35 @@
 #include <Wire.h>
-#include <LiquidCrystal_I2C.h>
-
-LiquidCrystal_I2C lcd1(0x27, 16, 2);
-LiquidCrystal_I2C lcd2(0x26, 16, 2);
 
 void setup() {
-  Wire.begin(21, 22);
+  Serial.begin(115200);
+  Wire.begin();   // SDA = 21, SCL = 22 mặc định trên ESP32
 
-  lcd1.init();
-  lcd2.init();
-
-  lcd1.backlight();
-  lcd2.backlight();
-
-  lcd1.print("LCD 1 - OK");
-  lcd2.print("LCD 2 - OK");
+  delay(2000);
+  Serial.println("🔍 Scanning I2C bus...");
 }
 
-void loop() {}
+void loop() {
+  byte error, address;
+  int count = 0;
+
+  for (address = 1; address < 127; address++) {
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+
+    if (error == 0) {
+      Serial.print("✔ Found I2C device at: 0x");
+      Serial.println(address, HEX);
+      count++;
+    }
+  }
+
+  if (count == 0) {
+    Serial.println("❌ No I2C devices found.");
+  } else {
+    Serial.print("🔎 Total devices found: ");
+    Serial.println(count);
+  }
+
+  Serial.println("---------------------------");
+  delay(2000); // quét lại mỗi 2 giây
+}

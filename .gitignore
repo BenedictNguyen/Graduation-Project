@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Firebase Credentials (NHẠY CẢM - KHÔNG COMMIT)
+*firebase-adminsdk*.json
+*.json.key
+
+# Model files (có thể rất lớn)
+*.pt
+*.pth
+*.onnx
+*.weights
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Node modules (đã có trong product-manager/.gitignore)
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+

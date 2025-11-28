@@ -117,9 +117,8 @@ Graduation-Project/
 ├── ESP32/
 │   ├── test_lcd/
 │   │   └── test_lcd.ino             # Code Arduino cho ESP32
-│   ├── i2c_scanner/
-│   │   └── i2c_scanner.ino         # Tool quét địa chỉ I2C
-│   └── BUZZER_QUICK_START.md       # Hướng dẫn kết nối loa
+│   └── i2c_scanner/
+│       └── i2c_scanner.ino         # Tool quét địa chỉ I2C
 │
 ├── product-manager/                 # Mobile App (React Native/Expo)
 │   ├── App.js                       # Entry point
@@ -139,7 +138,8 @@ Graduation-Project/
 │
 ├── firebase.json                    # Firebase config
 ├── firestore.rules                  # Firestore security rules
-└── realtime_database.rules           # Realtime Database rules
+├── realtime_database.rules          # Realtime Database rules
+└── requirements.txt                 # Python dependencies
 ```
 
 ---
@@ -183,9 +183,6 @@ source venv/bin/activate  # Linux/Mac
 venv\Scripts\activate     # Windows
 
 # Cài đặt dependencies
-pip install ultralytics opencv-python firebase-admin numpy
-
-# Hoặc từ requirements.txt (nếu có)
 pip install -r requirements.txt
 ```
 
@@ -305,7 +302,7 @@ GND      →     GND
 ```
 
 **LCD 2 (0x26)**:
-- Tương tự LCD 1, nhưng địa chỉ I2C là 0x26 (nối A0 hoặc A1 trên module I2C)
+- Tương tự LCD 1, nhưng địa chỉ I2C là 0x26 
 
 **Loa (Tùy chọn)**:
 ```
@@ -318,7 +315,7 @@ GND      →     GND            →  (+)
                               →  (-)
 ```
 
-Xem chi tiết trong `ESP32/BUZZER_QUICK_START.md`
+**Lưu ý**: Loa được điều khiển qua GPIO 25 bằng PWM. Code đã tích hợp sẵn chức năng phát âm thanh chào mừng khi WiFi kết nối.
 
 #### Cấu Hình WiFi
 
@@ -411,8 +408,61 @@ Thêm vào Firebase Realtime Database tại path `/lcd_control`:
 }
 ```
 
+### Cấu Trúc Dữ Liệu Firebase
+
+**Realtime Database** (`/product_counts/latest`):
+```json
+{
+  "timestamp": "2024-01-01 12:00:00",
+  "products": {
+    "black_tea": 5,
+    "noni_tea": 3,
+    "tra_den": 2
+  },
+  "total": 10
+}
+```
+
+**Firestore** (`product_counts/latest`):
+- Tương tự Realtime Database
+- Được sử dụng làm backup và lịch sử
+
+**LCD Control** (`/lcd_control`):
+```json
+{
+  "mode": "auto",
+  "customLine1": "",
+  "customLine2": "",
+  "commandId": ""
+}
+```
+
 ---
 
+## 🧪 Testing
+
+### Test YOLO Detection
+```bash
+# Chạy với camera mặc định
+python yolo.py
+
+# Kiểm tra model
+python -c "from ultralytics import YOLO; model = YOLO('best.pt'); print('Model loaded successfully')"
+```
+
+### Test ESP32
+1. Upload `ESP32/i2c_scanner/i2c_scanner.ino` để quét địa chỉ I2C
+2. Upload `ESP32/test_lcd/test_lcd.ino` và mở Serial Monitor
+3. Kiểm tra kết nối WiFi và Firebase
+
+### Test Mobile App
+```bash
+cd product-manager
+npm start
+# Quét QR code bằng Expo Go hoặc chạy trên emulator
+```
+
+---
 ## 🔧 Troubleshooting
 
 ### YOLO Detection
@@ -465,7 +515,7 @@ Thêm vào Firebase Realtime Database tại path `/lcd_control`:
 - Kiểm tra format dữ liệu đúng không:
   ```json
   {
-    "timestamp": "2024-01-01 12:00:00",
+    "timestamp": "2025-01-01 12:00:00",
     "products": {
       "black_tea": 5,
       "noni_tea": 3
@@ -507,9 +557,29 @@ Thêm vào Firebase Realtime Database tại path `/lcd_control`:
 ## 👤 Tác Giả
 
 **Graduation Project** - Hệ thống quản lý kệ hàng thông minh
+- Đặng Hồ Đức Huy
+- Nguyễn Đức Ân
 
 ---
 
+## 📝 Lưu Ý Quan Trọng
+
+### Bảo Mật
+- ⚠️ **KHÔNG commit** file Firebase credentials (`*firebase-adminsdk*.json`) lên Git
+- File này đã được thêm vào `.gitignore`
+- Nếu đã commit nhầm, hãy xóa ngay và tạo key mới trong Firebase Console
+
+### Model File
+- File `best.pt` có thể rất lớn (hàng trăm MB)
+- Cân nhắc sử dụng Git LFS hoặc lưu trữ riêng
+- File này đã được thêm vào `.gitignore` (có thể bỏ nếu muốn commit)
+
+### Dataset
+- Thư mục `images/` chứa dataset training
+- Có thể xóa nếu không cần train lại model
+- Hoặc lưu trữ riêng để giảm kích thước repository
+
+---
 ## 📄 License
 
 ISC License
@@ -525,5 +595,5 @@ ISC License
 
 ---
 
-**Chúc bạn thành công với dự án! 🎉**
+
 

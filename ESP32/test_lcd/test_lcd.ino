@@ -2,7 +2,6 @@
 #include <Firebase_ESP_Client.h>
 #include <LiquidCrystal_I2C.h>
 #include "time.h"
-#include "driver/dac.h"
 
 // ================== CẤU HÌNH ==================
 #define WIFI_SSID      "580"
@@ -29,20 +28,10 @@
 // Optional: Button Control (nếu có nút bấm)
 // #define BUTTON_PIN 2  // Uncomment nếu dùng nút bấm
 
-// Speaker/Buzzer Configuration (sử dụng DAC tích hợp)
-#define BUZZER_PIN 25        // GPIO pin phải là DAC (GPIO25 = DAC1 hoặc GPIO26 = DAC2)
-#define DAC_IDLE_LEVEL 128   // Mức điện áp trung bình (giữa 0-255 cho DAC 8-bit)
-
-const uint8_t SINE_TABLE[64] = {
-  128, 141, 154, 167, 178, 188, 197, 205,
-  211, 216, 219, 221, 221, 219, 216, 211,
-  205, 197, 188, 178, 167, 154, 141, 128,
-  115, 102,  89,  78,  68,  59,  52,  46,
-   43,  41,  41,  43,  46,  52,  59,  68,
-   78,  89, 102, 115, 128, 141, 154, 167,
-  178, 188, 197, 205, 211, 216, 219, 221,
-  221, 219, 216, 211, 205, 197, 188, 178
-};
+// Speaker/Buzzer Configuration (sử dụng PWM)
+#define BUZZER_PIN 25        // GPIO pin bất kỳ (khuyến nghị: 25, 26, 27, 14, 12...)
+#define PWM_RESOLUTION 8      // Độ phân giải PWM (8-bit = 0-255)
+#define PWM_FREQ_BASE 5000    // Tần số PWM cơ bản (Hz)
 
 // Flag để chỉ phát âm thanh chào mừng 1 lần khi khởi động
 bool welcomeSoundPlayed = false;
@@ -113,6 +102,7 @@ String truncateText(String text, int maxLen);
 void showCustomMessageOnLCD(LiquidCrystal_I2C &lcd, String line1, String line2);
 void resetScrollingState();
 void playWelcomeSound();  // Phát âm thanh chào mừng
+void playWelcomeToSmartShelf();  // Phát âm thanh "Welcome to smart shelf" khi WiFi kết nối
 void playTone(int frequency, int duration);  // Phát một nốt nhạc
 
 // ================== SETUP ==================
@@ -149,9 +139,20 @@ void setup() {
     Serial.println("✅ Button initialized");
   #endif
 
-  // Initialize buzzer/speaker (đặt DAC về mức trung bình để tránh tiếng "pop")
-  dacWrite(BUZZER_PIN, DAC_IDLE_LEVEL);
-  Serial.println("✅ Buzzer (DAC) initialized");
+  // Initialize buzzer/speaker (PWM) - ESP32 Arduino Core 3.x API
+  Serial.print("🔧 Initializing buzzer on GPIO");
+  Serial.println(BUZZER_PIN);
+  ledcAttach(BUZZER_PIN, PWM_FREQ_BASE, PWM_RESOLUTION);
+  ledcWriteTone(BUZZER_PIN, 0);  // Tắt buzzer ban đầu
+  delay(50);  // Đợi một chút để đảm bảo khởi tạo xong
+  Serial.println("✅ Buzzer (PWM) initialized");
+  
+  // Test buzzer ngay sau khi khởi tạo
+  Serial.println("🔊 Testing buzzer...");
+  ledcWriteTone(BUZZER_PIN, 1000);  // Phát 1000Hz
+  delay(100);
+  ledcWriteTone(BUZZER_PIN, 0);
+  Serial.println("✅ Buzzer test completed");
 
   // Connect WiFi
   connectWiFi();
@@ -223,7 +224,8 @@ void loop() {
         setupFirebase();
         showScreen();
         Serial.println("✅ WiFi reconnected");
-        // KHÔNG phát lại âm thanh chào mừng khi reconnect (chỉ phát khi khởi động)
+        // Phát âm thanh "Welcome to smart shelf" khi reconnect
+        playWelcomeToSmartShelf();
       }
     }
   } else {
@@ -379,6 +381,9 @@ void connectWiFi() {
     lcd2.setCursor(0, 0);
     lcd2.print("Smart Shelf Ready");
 
+    // Phát âm thanh "Welcome to smart shelf" khi WiFi kết nối thành công
+    playWelcomeToSmartShelf();
+    
     // Phát âm thanh chào mừng (chỉ khi khởi động lần đầu)
     if (!welcomeSoundPlayed) {
       playWelcomeSound();
@@ -1015,32 +1020,63 @@ void playWelcomeSound() {
     delay(30);  // Khoảng nghỉ ngắn giữa các nốt (ms)
   }
   
-  // Đưa DAC về mức trung bình để tránh DC offset
-  dacWrite(BUZZER_PIN, DAC_IDLE_LEVEL);
+  // Tắt buzzer
+  ledcWriteTone(BUZZER_PIN, 0);
   delay(10);
   
   Serial.println("✅ Welcome sound completed");
 }
 
+// Phát âm thanh "Welcome to smart shelf" khi WiFi kết nối
+void playWelcomeToSmartShelf() {
+  Serial.println("🔊 Playing 'Welcome to smart shelf' sound...");
+  
+  // Melody đơn giản, thân thiện cho "Welcome to smart shelf"
+  // Sử dụng các nốt nhạc vui vẻ, chào mừng
+  int melody[] = {
+    NOTE_G4, NOTE_A4, NOTE_C5, NOTE_E5,  // "Wel-come"
+    NOTE_G5, NOTE_E5, NOTE_C5,            // "to"
+    NOTE_A4, NOTE_G4, NOTE_E4,           // "smart"
+    NOTE_G4, NOTE_A4, NOTE_C5, NOTE_E5,  // "shelf"
+    NOTE_C6                                // Kết thúc
+  };
+  int noteDurations[] = {
+    150, 150, 150, 200,  // "Wel-come"
+    200, 150, 200,       // "to"
+    150, 150, 200,       // "smart"
+    150, 150, 150, 250,  // "shelf"
+    400                   // Kết thúc
+  };
+  
+  int numNotes = sizeof(melody) / sizeof(melody[0]);
+  
+  // Phát từng nốt nhạc
+  for (int i = 0; i < numNotes; i++) {
+    playTone(melody[i], noteDurations[i]);
+    delay(20);  // Khoảng nghỉ ngắn giữa các nốt (ms)
+  }
+  
+  // Tắt buzzer
+  ledcWriteTone(BUZZER_PIN, 0);
+  delay(10);
+  
+  Serial.println("✅ 'Welcome to smart shelf' sound completed");
+}
+
 // Phát một nốt nhạc với tần số và thời gian cụ thể
 void playTone(int frequency, int duration) {
   if (frequency <= 0 || duration <= 0) {
+    Serial.print("⚠️ Invalid tone: freq=");
+    Serial.print(frequency);
+    Serial.print(", duration=");
+    Serial.println(duration);
     return;
   }
 
-  const int samples = sizeof(SINE_TABLE) / sizeof(SINE_TABLE[0]);
-  int delayUs = 1000000 / (frequency * samples);
-  if (delayUs < 2) {
-    delayUs = 2;  // tránh delayMicroseconds(0)
-  }
-
-  unsigned long endTime = millis() + duration;
-  while (millis() < endTime) {
-    for (int i = 0; i < samples && millis() < endTime; i++) {
-      dacWrite(BUZZER_PIN, SINE_TABLE[i]);
-      delayMicroseconds(delayUs);
-    }
-  }
-
-  dacWrite(BUZZER_PIN, DAC_IDLE_LEVEL);
+  // Phát tần số bằng PWM
+  ledcWriteTone(BUZZER_PIN, frequency);
+  delay(duration);
+  
+  // Tắt buzzer
+  ledcWriteTone(BUZZER_PIN, 0);
 }
