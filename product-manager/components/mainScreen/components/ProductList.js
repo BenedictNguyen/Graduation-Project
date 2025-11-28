@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Animated } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getProductIcon } from '../utils/productUtils';
+import { getProductDisplayName } from '../utils/productUtils';
+import ProductIcon from './ProductIcon';
 import { productStyles } from '../styles';
 
 export default function ProductList({ products, maxProducts, fadeAnim, slideAnim }) {
@@ -92,8 +93,8 @@ export default function ProductList({ products, maxProducts, fadeAnim, slideAnim
                       }
                       style={productStyles.productIconGradient}
                     >
-                      <MaterialCommunityIcons 
-                        name={getProductIcon(name)} 
+                      <ProductIcon 
+                        productName={name}
                         size={26} 
                         color={isOutOfStock ? "#64748B" : "#6366F1"} 
                       />
@@ -105,7 +106,7 @@ export default function ProductList({ products, maxProducts, fadeAnim, slideAnim
                         style={[productStyles.productName, isOutOfStock && productStyles.productNameOutOfStock]}
                         numberOfLines={1}
                       >
-                        {name}
+                        {getProductDisplayName(name)}
                       </Text>
                       {isOutOfStock && (
                         <View style={productStyles.outOfStockBadge}>

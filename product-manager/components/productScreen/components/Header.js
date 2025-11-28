@@ -9,8 +9,8 @@ export default function Header() {
       colors={['#1E293B', '#0F172A']}
       style={styles.header}
     >
-      <Text style={styles.headerTitle}>Thống kê sản phẩm</Text>
-      <Text style={styles.headerSubtitle}>Phân tích chi tiết từ AI</Text>
+      <Text style={styles.headerTitle}>Sản phẩm</Text>
+      <Text style={styles.headerSubtitle}>Chi tiết sản phẩm từ AI</Text>
     </LinearGradient>
   );
 }

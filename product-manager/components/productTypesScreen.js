@@ -7,26 +7,15 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db, auth } from '../utils/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import BottomTabBar from './bottomTabBar';
 
-// Hàm mapping tên sản phẩm sang icon tượng trưng
-const getProductIcon = (productName) => {
-  const iconMap = {
-    'erasable pen': 'pencil-remove', // Bút xóa được
-    'ballpoint pen': 'pen', // Bút bi
-    'glue': 'bottle-tonic', // Keo dán
-    'black tea': 'cup', // Trà đen
-    'noni tea': 'cup-outline', // Trà noni
-  };
-  
-  // Trả về icon tương ứng hoặc icon mặc định
-  return iconMap[productName.toLowerCase()] || 'cube-outline';
-};
+import { getProductIcon, getProductDisplayName } from './mainScreen/utils/productUtils';
+import ProductIcon from './mainScreen/components/ProductIcon';
 
 export default function ProductTypesScreen({ navigation }) {
   const [productNames, setProductNames] = useState([]);
@@ -126,14 +115,14 @@ export default function ProductTypesScreen({ navigation }) {
                         colors={['rgba(99, 102, 241, 0.3)', 'rgba(139, 92, 246, 0.2)']}
                         style={styles.productIconGradient}
                       >
-                        <MaterialCommunityIcons 
-                          name={getProductIcon(name)} 
+                        <ProductIcon 
+                          productName={name}
                           size={24} 
                           color="#6366F1" 
                         />
                       </LinearGradient>
                     </View>
-                    <Text style={styles.productName}>{name}</Text>
+                    <Text style={styles.productName}>{getProductDisplayName(name)}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#6366F1" />
                 </LinearGradient>

@@ -18,6 +18,7 @@ import json
 import numpy as np
 import sys
 import contextlib
+from typing import Optional, Dict, Tuple, Any
 
 # ============================================================================
 # CONFIGURATION - Tách riêng để dễ quản lý
@@ -30,8 +31,9 @@ class Config:
     FIREBASE_CRED_PATH = "graduationproject-8fc97-firebase-adminsdk-fbsvc-b8be2051cd.json"
     FIREBASE_COLLECTION = "product_counts"
     
-    # YOLO Model
-    MODEL_PATH = "D:/DO_AN_TN/App/Graduation-Project/Graduation-Project/best.pt"
+    # YOLO Model - Sử dụng relative path để portable hơn
+    # Có thể override bằng config.json hoặc environment variable
+    MODEL_PATH = "best.pt"  # Relative path - file cùng thư mục với script
     CONFIDENCE_THRESHOLD = 0.5
 
     # Camera
@@ -43,7 +45,7 @@ class Config:
     SEND_INTERVAL = 5  # Giây 
     UPDATE_MODE = True  # True: Update document "latest", False: Tạo document mới
     MIN_CHANGE_THRESHOLD = 0  # Chỉ update nếu tổng số sản phẩm thay đổi >= threshold này
-    RESET_ON_START = False  # True: Reset Firebase về 0 khi khởi động, False: Tiếp tục từ dữ liệu hiện có
+    RESET_ON_START = True  # True: Reset Firebase về 0 khi khởi động, False: Tiếp tục từ dữ liệu hiện có
     
     # Display
     WINDOW_NAME = "YOLOv11 Product Detection"
@@ -51,8 +53,12 @@ class Config:
     HEADLESS_MODE = False  # True: Không hiển thị cửa sổ (dành cho server không có màn hình)
     
     @classmethod
-    def load_from_file(cls, config_path='config.json'):
-        """Load config từ file JSON (nếu tồn tại)"""
+    def load_from_file(cls, config_path: str = 'config.json') -> None:
+        """Load config từ file JSON (nếu tồn tại)
+        
+        Args:
+            config_path: Đường dẫn đến file config JSON
+        """
         if Path(config_path).exists():
             with open(config_path, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
@@ -67,8 +73,12 @@ class Config:
 # FIREBASE SETUP
 # ============================================================================
 
-def init_firebase():
-    """Khởi tạo Firebase với error handling và suppress gRPC warnings"""
+def init_firebase() -> Optional[firestore.Client]:
+    """Khởi tạo Firebase với error handling và suppress gRPC warnings
+    
+    Returns:
+        Firestore client nếu thành công, None nếu thất bại
+    """
     try:
         # Kiểm tra file credential
         if not Path(Config.FIREBASE_CRED_PATH).exists():
@@ -97,8 +107,16 @@ def init_firebase():
 # YOLO MODEL SETUP
 # ============================================================================
 
-def init_model():
-    """Khởi tạo YOLO model với error handling"""
+def init_model() -> Tuple[YOLO, Dict[int, str]]:
+    """Khởi tạo YOLO model với error handling
+    
+    Returns:
+        Tuple chứa (model, names dictionary)
+        
+    Raises:
+        FileNotFoundError: Nếu không tìm thấy file model
+        Exception: Các lỗi khác khi load model
+    """
     try:
         # Kiểm tra file model
         if not Path(Config.MODEL_PATH).exists():
@@ -122,9 +140,15 @@ def init_model():
 # CAMERA SETUP
 # ============================================================================
 
-def init_camera():
-    """Khởi tạo camera với auto-detect và error handling"""
+def init_camera() -> cv2.VideoCapture:
+    """Khởi tạo camera với auto-detect và error handling
     
+    Returns:
+        cv2.VideoCapture object đã được khởi tạo
+        
+    Raises:
+        RuntimeError: Nếu không thể mở bất kỳ camera nào
+    """
     # Trên Windows, ưu tiên DSHOW backend (ổn định hơn với memory layout)
     backends_to_try = []
     if os.name == 'nt':  # Windows
@@ -283,7 +307,87 @@ def init_camera():
 # FIREBASE OPERATIONS
 # ============================================================================
 
-def send_to_firestore(db, product_counts, previous_total=None):
+def clear_firebase_data(db: Optional[firestore.Client], delete_completely: bool = False) -> bool:
+    """Xóa toàn bộ dữ liệu sản phẩm trên Firebase (Firestore + Realtime Database)
+    
+    Args:
+        db: Firestore client (có thể là None)
+        delete_completely: True để xóa hoàn toàn document, False để reset về trạng thái rỗng
+    
+    Returns:
+        True nếu xóa thành công, False nếu thất bại
+    """
+    if db is None:
+        print("❌ Firebase không khả dụng, không thể xóa dữ liệu")
+        return False
+    
+    try:
+        print("🗑️  Đang xóa dữ liệu Firebase...")
+        
+        # Xóa dữ liệu Firestore
+        doc_ref = db.collection(Config.FIREBASE_COLLECTION).document("latest")
+        
+        if delete_completely:
+            # Xóa hoàn toàn document "latest"
+            doc_ref.delete()
+            print("✅ Đã xóa hoàn toàn document 'latest' trong Firestore")
+            
+            # Xóa tất cả documents khác trong collection (nếu có)
+            collection_ref = db.collection(Config.FIREBASE_COLLECTION)
+            docs = collection_ref.stream()
+            deleted_count = 0
+            for doc in docs:
+                doc.reference.delete()
+                deleted_count += 1
+            
+            if deleted_count > 0:
+                print(f"✅ Đã xóa thêm {deleted_count} documents khác trong collection")
+        else:
+            # Reset document về trạng thái rỗng
+            empty_data = {
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "products": {},
+                "total": 0
+            }
+            doc_ref.set(empty_data)
+            print("✅ Đã reset document 'latest' trong Firestore về trạng thái rỗng")
+        
+        # Xóa dữ liệu Realtime Database
+        try:
+            rtdb_ref = rtdb.reference('/product_counts')
+            if delete_completely:
+                # Xóa hoàn toàn node product_counts
+                rtdb_ref.delete()
+                print("✅ Đã xóa hoàn toàn node '/product_counts' trong Realtime Database")
+            else:
+                # Reset node latest về trạng thái rỗng
+                empty_data = {
+                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "products": {},
+                    "total": 0
+                }
+                rtdb_ref.child('latest').set(empty_data)
+                print("✅ Đã reset node '/product_counts/latest' trong Realtime Database")
+                
+        except Exception as rtdb_error:
+            print(f"⚠️  Lỗi khi xóa Realtime Database: {rtdb_error}")
+            # Vẫn coi là thành công nếu Firestore OK
+        
+        action_text = "xóa hoàn toàn" if delete_completely else "reset"
+        print(f"🎉 Đã {action_text} toàn bộ dữ liệu sản phẩm cũ!")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Lỗi khi xóa dữ liệu Firebase: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def send_to_firestore(
+    db: Optional[firestore.Client], 
+    product_counts: Dict[str, int], 
+    previous_total: Optional[int] = None
+) -> Tuple[bool, int]:
     """Gửi dữ liệu lên Firestore với error handling và merge logic
     
     Logic merge:
@@ -412,30 +516,41 @@ def send_to_firestore(db, product_counts, previous_total=None):
 class FPSCounter:
     """Đếm FPS để monitor performance"""
     
-    def __init__(self, avg_frames=30):
-        self.frame_times = []
-        self.avg_frames = avg_frames
+    def __init__(self, avg_frames: int = 30) -> None:
+        """Khởi tạo FPS counter
+        
+        Args:
+            avg_frames: Số frame trung bình để tính FPS
+        """
+        self.frame_times: list[float] = []
+        self.avg_frames: int = avg_frames
     
-    def update(self):
+    def update(self) -> None:
+        """Cập nhật frame time"""
         self.frame_times.append(time.time())
         if len(self.frame_times) > self.avg_frames:
             self.frame_times.pop(0)
     
-    def get_fps(self):
+    def get_fps(self) -> float:
+        """Tính FPS trung bình
+        
+        Returns:
+            FPS trung bình (float), 0 nếu chưa đủ dữ liệu
+        """
         if len(self.frame_times) < 2:
-            return 0
+            return 0.0
         
         time_diff = self.frame_times[-1] - self.frame_times[0]
         if time_diff > 0:
             return len(self.frame_times) / time_diff
-        return 0
+        return 0.0
 
 # ============================================================================
 # MAIN DETECTION LOOP
 # ============================================================================
 
-def main():
-    """Main detection loop"""
+def main() -> None:
+    """Main detection loop - Entry point của ứng dụng"""
     
     print("\n" + "="*70)
     print("🚀 YOLOv11 PRODUCT DETECTION + FIREBASE")
@@ -524,6 +639,7 @@ def main():
         print("   Press 'q' to quit")
         print("   Press 's' to send data manually")
         print("   Press 'c' to clear console")
+        print("   Press 'r' to reset/clear Firebase data")
     else:
         print("   Running in headless mode - use Ctrl+C to quit")
         print("   Detection results will be printed to console")
@@ -768,6 +884,45 @@ def main():
             elif key == ord('c'):
                 # Clear console
                 os.system('cls' if os.name == 'nt' else 'clear')
+            
+            elif key == ord('r'):
+                # Reset/Clear Firebase data
+                print("\n🗑️  Clearing Firebase data...")
+                print("   1. Reset về trạng thái rỗng (khuyến nghị)")
+                print("   2. Xóa hoàn toàn document 'latest'")
+                print("   Chọn 1 (mặc định) hoặc 2...")
+                
+                # Đợi user chọn trong 3 giây, mặc định là reset
+                import select
+                import sys
+                
+                choice = "1"  # Mặc định
+                try:
+                    # Trên Windows, sử dụng msvcrt
+                    if os.name == 'nt':
+                        import msvcrt
+                        start_time = time.time()
+                        while time.time() - start_time < 3:
+                            if msvcrt.kbhit():
+                                choice = msvcrt.getch().decode('utf-8')
+                                break
+                            time.sleep(0.1)
+                    else:
+                        # Trên Linux/Mac
+                        ready, _, _ = select.select([sys.stdin], [], [], 3)
+                        if ready:
+                            choice = sys.stdin.readline().strip()
+                except:
+                    choice = "1"  # Fallback
+                
+                delete_completely = (choice == "2")
+                success = clear_firebase_data(db, delete_completely)
+                if success:
+                    previous_total = 0
+                    action = "xóa hoàn toàn" if delete_completely else "reset"
+                    print(f"✅ Firebase data đã được {action} thành công!")
+                else:
+                    print("❌ Failed to clear Firebase data")
     
     except KeyboardInterrupt:
         print("\n\n⚠️  Interrupted by user")

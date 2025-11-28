@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { auth, db } from '../../../utils/firebaseConfig';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { styles } from '../styles';
 
 export default function EditNameModal({
@@ -28,7 +28,9 @@ export default function EditNameModal({
 }) {
   const handleSave = async () => {
     if (savingName) return;
-    if (!displayName.trim()) {
+    const trimmedName = displayName.trim();
+    
+    if (!trimmedName) {
       Alert.alert('Lỗi', 'Vui lòng nhập tên hiển thị');
       return;
     }
@@ -36,18 +38,62 @@ export default function EditNameModal({
     setSavingName(true);
     try {
       const user = auth.currentUser;
-      if (user) {
-        const userDocRef = doc(db, 'users', user.uid);
-        await updateDoc(userDocRef, {
-          displayName: displayName.trim(),
-        });
-        onSaveSuccess(displayName.trim());
-        onClose();
-        Alert.alert('Thành công', 'Đã cập nhật tên hiển thị');
+      if (!user) {
+        Alert.alert('Lỗi', 'Không tìm thấy thông tin người dùng');
+        setSavingName(false);
+        return;
       }
+
+      // Kiểm tra tên trùng lặp (case-insensitive)
+      // Lấy tất cả users có displayName để kiểm tra
+      const usersRef = collection(db, 'users');
+      const querySnapshot = await getDocs(usersRef);
+      
+      // Normalize tên để so sánh (chuyển về lowercase và trim)
+      const normalizedNewName = trimmedName.toLowerCase().trim();
+      
+      // Kiểm tra xem có user nào khác (ngoài user hiện tại) đã dùng tên này chưa (case-insensitive)
+      const duplicateUsers = querySnapshot.docs.filter((docSnapshot) => {
+        if (docSnapshot.id === user.uid) return false; // Bỏ qua user hiện tại
+        
+        const userData = docSnapshot.data();
+        const existingDisplayName = userData.displayName;
+        
+        if (!existingDisplayName) return false;
+        
+        // So sánh case-insensitive
+        return existingDisplayName.toLowerCase().trim() === normalizedNewName;
+      });
+      
+      if (duplicateUsers.length > 0) {
+        Alert.alert(
+          'Tên đã được sử dụng',
+          'Tên hiển thị này đã được sử dụng bởi người dùng khác. Vui lòng chọn tên khác.'
+        );
+        setSavingName(false);
+        return;
+      }
+
+      // Nếu không trùng, cập nhật tên
+      const userDocRef = doc(db, 'users', user.uid);
+      await updateDoc(userDocRef, {
+        displayName: trimmedName,
+      });
+      onSaveSuccess(trimmedName);
+      onClose();
+      Alert.alert('Thành công', 'Đã cập nhật tên hiển thị');
     } catch (error) {
       console.error('Error updating display name:', error);
-      Alert.alert('Lỗi', 'Không thể cập nhật tên hiển thị: ' + error.message);
+      
+      // Xử lý lỗi thiếu index
+      if (error.code === 'failed-precondition') {
+        Alert.alert(
+          'Lỗi',
+          'Hệ thống đang cấu hình. Vui lòng thử lại sau.'
+        );
+      } else {
+        Alert.alert('Lỗi', 'Không thể cập nhật tên hiển thị: ' + error.message);
+      }
     } finally {
       setSavingName(false);
     }

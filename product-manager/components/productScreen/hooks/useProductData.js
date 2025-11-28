@@ -1,21 +1,30 @@
-import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { useState, useEffect, useRef } from 'react';
+import { onSnapshot, doc } from 'firebase/firestore';
 import { db, auth } from '../../../utils/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
-import { processChartData } from '../utils/productUtils';
 
-export function useProductData(navigation, showChart, period) {
+/**
+ * Hook để lấy dữ liệu sản phẩm mới nhất từ Firebase
+ * Sử dụng document "latest" thay vì query collection để đảm bảo consistency
+ * và performance tốt hơn
+ * 
+ * @param {Object} navigation - Navigation object từ React Navigation
+ * @returns {Object} { latestProduct, loading }
+ */
+export function useProductData(navigation) {
   const [latestProduct, setLatestProduct] = useState(null);
-  const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const isUnmountedRef = useRef(false);
+  const firestoreUnsubscribeRef = useRef(null);
 
   useEffect(() => {
-    let firestoreUnsubscribe = null;
+    isUnmountedRef.current = false;
 
     const authUnsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (firestoreUnsubscribe) {
-        firestoreUnsubscribe();
-        firestoreUnsubscribe = null;
+      // Cleanup previous firestore listener nếu có (tránh race condition)
+      if (firestoreUnsubscribeRef.current) {
+        firestoreUnsubscribeRef.current();
+        firestoreUnsubscribeRef.current = null;
       }
 
       if (!user) {
@@ -24,89 +33,52 @@ export function useProductData(navigation, showChart, period) {
           console.log('User not authenticated, redirecting to login...');
           navigation.replace('Login');
         }
-        setLoading(false);
+        if (!isUnmountedRef.current) {
+          setLoading(false);
+        }
         return;
       }
 
-      // Query cho bản ghi mới nhất
-      const latestQuery = query(
-        collection(db, 'product_counts'),
-        orderBy('timestamp', 'desc'),
-        limit(1)
-      );
+      // Đọc từ document "latest" thay vì query collection (hiệu quả hơn và đúng logic)
+      // Đảm bảo consistency với mainScreen hook
+      const docRef = doc(db, 'product_counts', 'latest');
 
-      // Query cho biểu đồ
-      const chartQuery = query(
-        collection(db, 'product_counts'),
-        orderBy('timestamp', 'desc'),
-        limit(500)
-      );
+      const unsubscribe = onSnapshot(docRef, (docSnapshot) => {
+        // Kiểm tra component chưa bị unmount trước khi setState
+        if (isUnmountedRef.current) {
+          return;
+        }
 
-      // Lắng nghe bản ghi mới nhất
-      const latestUnsubscribe = onSnapshot(latestQuery, (snapshot) => {
-        if (!snapshot.empty) {
-          const doc = snapshot.docs[0];
+        if (docSnapshot.exists()) {
           setLatestProduct({
-            id: doc.id,
-            ...doc.data(),
+            id: docSnapshot.id,
+            ...docSnapshot.data(),
           });
         } else {
           setLatestProduct(null);
         }
+        setLoading(false);
       }, (error) => {
         console.error('Error listening to latest product:', error);
-        setLatestProduct(null);
+        if (!isUnmountedRef.current) {
+          setLoading(false);
+          setLatestProduct(null);
+        }
       });
 
-      // Lắng nghe dữ liệu cho biểu đồ
-      const chartUnsubscribe = onSnapshot(chartQuery, (snapshot) => {
-        setLoading(false);
-      }, (error) => {
-        console.error('Error listening to chart product data:', error);
-        setLoading(false);
-        setChartData(null);
-      });
-
-      firestoreUnsubscribe = () => {
-        latestUnsubscribe();
-        chartUnsubscribe();
-      };
+      firestoreUnsubscribeRef.current = unsubscribe;
     });
 
     return () => {
+      isUnmountedRef.current = true;
       authUnsubscribe();
-      if (firestoreUnsubscribe) {
-        firestoreUnsubscribe();
+      if (firestoreUnsubscribeRef.current) {
+        firestoreUnsubscribeRef.current();
+        firestoreUnsubscribeRef.current = null;
       }
     };
   }, [navigation]);
 
-  // useEffect để xử lý lại dữ liệu khi period thay đổi
-  useEffect(() => {
-    if (showChart) {
-      const chartQuery = query(
-        collection(db, 'product_counts'),
-        orderBy('timestamp', 'desc'),
-        limit(500)
-      );
-      
-      const unsubscribe = onSnapshot(chartQuery, (snapshot) => {
-        const allData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        processChartData(allData, period, setChartData);
-      }, (error) => {
-        console.error('Error listening to chart data:', error);
-        setChartData(null);
-      });
-
-      return () => unsubscribe();
-    } else {
-      setChartData(null);
-    }
-  }, [period, showChart]);
-
-  return { latestProduct, chartData, loading };
+  return { latestProduct, loading };
 }
 

@@ -1,0 +1,23 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Bột rau má/Centella powder -->
+  <ellipse cx="32" cy="44" rx="18" ry="4" fill="#8B4513" opacity="0.3"/>
+  <!-- Bowl -->
+  <path d="M14 28 C14 24, 18 20, 22 20 L42 20 C46 20, 50 24, 50 28 L48 38 C48 42, 44 46, 40 46 L24 46 C20 46, 16 42, 16 38 Z" fill="#FFFFFF" stroke="#D5D5D5" stroke-width="2"/>
+  <!-- Powder (green) -->
+  <ellipse cx="32" cy="32" rx="14" ry="8" fill="#90EE90"/>
+  <ellipse cx="32" cy="30" rx="12" ry="6" fill="#98FB98"/>
+  <!-- Powder texture -->
+  <circle cx="28" cy="30" r="1" fill="#7CFC00" opacity="0.8"/>
+  <circle cx="36" cy="32" r="1.2" fill="#7CFC00" opacity="0.8"/>
+  <circle cx="32" cy="34" r="0.8" fill="#7CFC00" opacity="0.8"/>
+  <circle cx="30" cy="28" r="0.6" fill="#ADFF2F" opacity="0.8"/>
+  <circle cx="34" cy="30" r="0.9" fill="#ADFF2F" opacity="0.8"/>
+  <!-- Spoon -->
+  <ellipse cx="44" cy="24" rx="3" ry="1.5" fill="#C0C0C0" stroke="#A0A0A0" stroke-width="1"/>
+  <rect x="46" y="18" width="2" height="8" rx="1" fill="#C0C0C0" stroke="#A0A0A0" stroke-width="1"/>
+  <!-- Centella leaves decoration -->
+  <path d="M20 16 C18 14, 22 12, 24 14 C26 16, 22 18, 20 16" fill="#228B22"/>
+  <path d="M40 16 C38 14, 42 12, 44 14 C46 16, 42 18, 40 16" fill="#228B22"/>
+  <!-- Label -->
+  <text x="32" y="56" text-anchor="middle" font-family="Arial" font-size="7" fill="#333">Bột rau má</text>
+</svg>

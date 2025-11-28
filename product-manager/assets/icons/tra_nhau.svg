@@ -1,0 +1,20 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Trà nhàu/Herbal tea cup -->
+  <ellipse cx="32" cy="44" rx="18" ry="4" fill="#8B4513" opacity="0.3"/>
+  <!-- Cup body -->
+  <path d="M16 24 C16 20, 20 16, 24 16 L40 16 C44 16, 48 20, 48 24 L46 40 C46 44, 42 48, 38 48 L26 48 C22 48, 18 44, 18 40 Z" fill="#FFFFFF" stroke="#D5D5D5" stroke-width="2"/>
+  <!-- Tea liquid (brownish-green) -->
+  <path d="M18 26 L46 26 L44 38 C44 40, 42 42, 40 42 L24 42 C22 42, 20 40, 20 38 Z" fill="#8B6914"/>
+  <!-- Cup handle -->
+  <path d="M48 28 C52 28, 54 32, 52 36 C50 38, 48 36, 48 34" fill="none" stroke="#D5D5D5" stroke-width="3" stroke-linecap="round"/>
+  <!-- Herbal leaves floating -->
+  <ellipse cx="28" cy="32" rx="2" ry="1" fill="#228B22" opacity="0.7"/>
+  <ellipse cx="36" cy="30" rx="1.5" ry="0.8" fill="#32CD32" opacity="0.7"/>
+  <ellipse cx="32" cy="36" rx="1.8" ry="1" fill="#228B22" opacity="0.6"/>
+  <!-- Steam -->
+  <path d="M28 12 C28 8, 30 10, 30 6" stroke="#E8E8E8" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M32 14 C32 10, 34 12, 34 8" stroke="#E8E8E8" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M36 12 C36 8, 38 10, 38 6" stroke="#E8E8E8" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <!-- Label -->
+  <text x="32" y="56" text-anchor="middle" font-family="Arial" font-size="8" fill="#333">Trà nhàu</text>
+</svg>

@@ -1,24 +1,37 @@
 {
   "rules": {
     "product_counts": {
-      ".read": true,
-      ".write": true,
+      // Chỉ cho phép authenticated users đọc/ghi
+      // Server-side (Python với Admin SDK) có thể ghi bất kỳ lúc nào
+      ".read": "auth != null",
+      ".write": "auth != null",
       "latest": {
-        ".read": true,
-        ".write": true,
+        ".read": "auth != null",
+        // Chỉ server-side mới được ghi (client-side không được phép)
+        // Server-side sử dụng Admin SDK nên không bị ảnh hưởng bởi rules này
+        ".write": false,
         "products": {
-          ".read": true,
-          ".write": true
+          ".read": "auth != null",
+          ".write": false
         },
         "total": {
-          ".read": true,
-          ".write": true
+          ".read": "auth != null",
+          ".write": false
         },
         "timestamp": {
-          ".read": true,
-          ".write": true
+          ".read": "auth != null",
+          ".write": false
         }
       }
+    },
+    "lcd_control": {
+      // Tất cả người dùng đã đăng nhập có thể đọc trạng thái LCD
+      ".read": "auth != null",
+      // CHỈ ADMIN MỚI ĐƯỢC GHI: 
+      // Phân quyền được kiểm tra ở client-side (useLcdControl hook)
+      // vì Realtime Database rules không thể truy cập Firestore để lấy role.
+      // Client-side validation đảm bảo chỉ admin mới có thể gửi lệnh điều khiển LCD.
+      ".write": "auth != null"
     }
   }
 }

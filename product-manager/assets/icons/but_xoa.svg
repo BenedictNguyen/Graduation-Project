@@ -1,0 +1,12 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Bút xóa/Eraser -->
+  <rect x="12" y="20" width="40" height="24" rx="4" fill="#FF6B6B" stroke="#E55555" stroke-width="2"/>
+  <rect x="16" y="24" width="32" height="16" rx="2" fill="#FFB3B3"/>
+  <rect x="8" y="18" width="8" height="28" rx="2" fill="#4ECDC4" stroke="#45B7B8" stroke-width="2"/>
+  <!-- Texture lines -->
+  <line x1="20" y1="28" x2="44" y2="28" stroke="#FF9999" stroke-width="1"/>
+  <line x1="20" y1="32" x2="44" y2="32" stroke="#FF9999" stroke-width="1"/>
+  <line x1="20" y1="36" x2="44" y2="36" stroke="#FF9999" stroke-width="1"/>
+  <!-- Label -->
+  <text x="32" y="56" text-anchor="middle" font-family="Arial" font-size="8" fill="#333">Bút xóa</text>
+</svg>

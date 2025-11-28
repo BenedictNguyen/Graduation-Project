@@ -1,31 +1,20 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-#define LCD_ADDR 0x27   // Đổi thành 0x3F nếu không chạy
-
-LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
+LiquidCrystal_I2C lcd1(0x27, 16, 2);
+LiquidCrystal_I2C lcd2(0x26, 16, 2);
 
 void setup() {
-  Serial.begin(9600);
-
-  // ESP32 sử dụng SDA = 21, SCL = 22
   Wire.begin(21, 22);
 
-  Serial.println("Dang khoi tao LCD...");
+  lcd1.init();
+  lcd2.init();
 
-  lcd.init();         // KHÔNG phải lcd.begin() với ESP32!
-  lcd.backlight();    // bật đèn nền
-  lcd.clear();
+  lcd1.backlight();
+  lcd2.backlight();
 
-  lcd.setCursor(0, 0);
-  lcd.print("LCD TEST OK!");
-
-  lcd.setCursor(0, 1);
-  lcd.print("ESP32 connected");
-
-  Serial.println("LCD da khoi tao xong.");
+  lcd1.print("LCD 1 - OK");
+  lcd2.print("LCD 2 - OK");
 }
 
-void loop() {
-
-}
+void loop() {}

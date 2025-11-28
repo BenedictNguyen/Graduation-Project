@@ -169,6 +169,7 @@ export default function MainScreen({ navigation }) {
               connectionStatus={connectionStatus}
               scaleAnim={scaleAnim}
               fadeAnim={fadeAnim}
+              onRefresh={onRefresh}
             />
           </View>
 
