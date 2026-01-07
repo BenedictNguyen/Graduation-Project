@@ -346,7 +346,26 @@ Mở `test_lcd.ino` và sửa:
    - Quét QR code bằng Expo Go app (Android/iOS)
    - Hoặc nhấn `a` (Android) / `i` (iOS) để mở emulator
 
-2. **Build APK/IPA**:
+2. **Build APK để cài đặt**:
+   
+   **Xem hướng dẫn chi tiết:** [`product-manager/BUILD_APK.md`](product-manager/BUILD_APK.md)
+   
+   **Quick build:**
+   ```bash
+   cd product-manager
+   npm run build:apk:preview    # Build APK để test
+   # hoặc
+   npm run build:apk:production # Build APK production
+   ```
+   
+   **Hoặc dùng EAS CLI trực tiếp:**
+   ```bash
+   eas build --platform android --profile preview
+   ```
+   
+   APK sẽ được build trên cloud và bạn sẽ nhận được link tải về sau 10-20 phút.
+
+3. **Build APK/IPA** (Legacy):
    ```bash
    # Android
    eas build --platform android

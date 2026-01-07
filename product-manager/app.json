@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Product AI",
-    "slug": "snack-a178ac31-ff09-48ca-b3f3-d60899e9e63a",
+    "slug": "product-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,29 +14,45 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nguyenducan.snacka178ac31ff0948cab3f3d60899e9e63a",
+      "bundleIdentifier": "com.hoduzkhuy",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.nguyenducan.snacka178ac31ff0948cab3f3d60899e9e63a"
+      "package": "com.hoduzkhuy",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ứng dụng cần quyền truy cập ảnh để cập nhật avatar.",
+          "cameraPermission": "Ứng dụng cần quyền truy cập camera để chụp ảnh avatar."
+        }
+      ]
+    ],
     "extra": {
       "eas": {
-        "projectId": "47cc9f90-e526-4f44-a9bf-d466b13bec86"
+        "projectId": "75e85801-f2e2-47b7-8ad3-32ad8c1998f8"
       }
     },
-    "plugins": [
-      "expo-font"
-    ]
+    "owner": "hoduckhuy"
   }
 }

@@ -37,7 +37,7 @@ class Config:
     CONFIDENCE_THRESHOLD = 0.5
 
     # Camera
-    CAMERA_INDEX = 1  # Thay đổi thành 0 nếu webcam mặc định
+    CAMERA_INDEX = 2  # Thay đổi thành 0 nếu webcam mặc định
     CAMERA_WIDTH = 640   # Resolution chuẩn cho camera
     CAMERA_HEIGHT = 480
     
